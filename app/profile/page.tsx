@@ -237,7 +237,7 @@ export default function ProfilePage() {
 
   return (
     <div className="p-4 pb-24 max-w-md mx-auto">
-      <div className="flex justify-between items-center mb-4 mt-15">
+      <div className="flex justify-between items-center mb-4 mt-3">
         <h1 className="text-2xl font-bold text-razdwa-dark">Mój profil</h1>
         <button
           onClick={() => setIsEditing(!isEditing)}

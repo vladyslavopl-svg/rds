@@ -29,7 +29,7 @@ export default function Home() {
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen pb-24">
-      <div className="mb-6 mt-15">
+      <div className="mb-6 mt-3">
         <h1 className="text-2xl font-bold text-razdwa-dark">Najnowsze zlecenia</h1>
         <p className="text-gray-500 text-sm">Znajdź pracę, która Ci odpowiada</p>
       </div>

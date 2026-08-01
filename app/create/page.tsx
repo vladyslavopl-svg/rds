@@ -110,7 +110,7 @@ export default function CreateOrderPage() {
 
   return (
         <div className="p-4 bg-gray-50 min-h-screen pb-24">
-      <div className="mb-4 mt-15">
+      <div className="mb-4 mt-3">
         <h1 className="text-2xl font-bold text-razdwa-dark mb-1">Dodaj zlecenie</h1>
       </div>
 
