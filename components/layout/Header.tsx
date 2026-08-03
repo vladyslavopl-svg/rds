@@ -16,7 +16,6 @@ export const Header = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
-  // Використовуємо ref, щоб завжди мати актуальний канал
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isMountedRef = useRef(true);
 
@@ -31,14 +30,16 @@ export const Header = () => {
     };
 
     const initHeader = async (userId: string) => {
-      // Спочатку обов'язково прибираємо старий канал
       await cleanupChannel();
 
       if (!isMountedRef.current) return;
 
-      // Створюємо новий канал і підписуємося
+      // РЕШЕНИЕ ОШИБКИ: Добавляем Date.now(), чтобы имя канала всегда было уникальным 
+      // и не тянуло из кэша уже подписанные инстансы
+      const uniqueChannelName = `notifications-${userId}-${Date.now()}`;
+
       const channel = supabase
-        .channel(`notifications-${userId}`)
+        .channel(uniqueChannelName)
         .on(
           'postgres_changes',
           {
@@ -101,7 +102,6 @@ export const Header = () => {
         
         setSession(session);
 
-        // Завжди чистимо старий канал
         await cleanupChannel();
 
         if (session?.user) {
