@@ -7,15 +7,17 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: Request) {
   try {
-    // Теперь мы получаем еще и pointsToGive с фронтенда
     const { priceId, userId, isSubscription, pointsToGive } = await req.json();
 
     if (!userId) {
       return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
     }
 
+    // ИСПРАВЛЕНИЕ ЗДЕСЬ: Для подписки оставляем только карты, для пакетов - карты и BLIK
+    const paymentMethods = isSubscription ? ['card'] : ['card', 'blik'];
+
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card', 'blik'],
+      payment_method_types: paymentMethods,
       line_items: [
         {
           price: priceId,
@@ -23,15 +25,12 @@ export async function POST(req: Request) {
         },
       ],
       mode: isSubscription ? 'subscription' : 'payment', 
-      
-      // МАГИЯ ЗДЕСЬ: Передаем скрытые данные, которые вернутся нам в Webhook
       metadata: {
         userId: userId,
         isPro: isSubscription ? 'true' : 'false',
         points: pointsToGive ? pointsToGive.toString() : '0'
       },
       client_reference_id: userId,
-      
       success_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/wallet?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/wallet?canceled=true`,
     });
