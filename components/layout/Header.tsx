@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, Wallet, LogOut, CheckCircle, X } from 'lucide-react';
+import { Bell, Wallet, LogOut, CheckCircle, X, Star } from 'lucide-react'; // Добавили Star
 import { supabase } from '@/lib/supabase';
 
 export const Header = () => {
@@ -12,6 +12,7 @@ export const Header = () => {
   const [session, setSession] = useState<any>(null);
   const [isProvider, setIsProvider] = useState(false);
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
+  const [isPro, setIsPro] = useState(false); // НОВОЕ: Стейт для статуса PRO
   
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -34,8 +35,6 @@ export const Header = () => {
 
       if (!isMountedRef.current) return;
 
-      // РЕШЕНИЕ ОШИБКИ: Добавляем Date.now(), чтобы имя канала всегда было уникальным 
-      // и не тянуло из кэша уже подписанные инстансы
       const uniqueChannelName = `notifications-${userId}-${Date.now()}`;
 
       const channel = supabase
@@ -58,10 +57,10 @@ export const Header = () => {
 
       channelRef.current = channel;
 
-      // Завантажуємо дані профілю
+      // НОВОЕ: Добавили is_pro в запрос к базе данных
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('role, points_balance')
+        .select('role, points_balance, is_pro')
         .eq('id', userId)
         .single();
 
@@ -70,6 +69,7 @@ export const Header = () => {
       if (profileData) {
         setIsProvider(profileData.role === 'provider');
         setPointsBalance(profileData.points_balance);
+        setIsPro(profileData.is_pro || false); // Сохраняем статус PRO
 
         if (profileData.role === 'provider') {
           const { data: notifsData } = await supabase
@@ -86,7 +86,6 @@ export const Header = () => {
       }
     };
 
-    // Початкова перевірка сесії
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!isMountedRef.current) return;
       setSession(session);
@@ -95,13 +94,11 @@ export const Header = () => {
       }
     });
 
-    // Слухаємо зміни авторизації
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (!isMountedRef.current) return;
         
         setSession(session);
-
         await cleanupChannel();
 
         if (session?.user) {
@@ -109,6 +106,7 @@ export const Header = () => {
         } else {
           setIsProvider(false);
           setPointsBalance(null);
+          setIsPro(false);
           setNotifications([]);
         }
       }
@@ -159,13 +157,34 @@ export const Header = () => {
         <div className="flex items-center gap-2 text-razdwa-dark">
           {session ? (
             <>
-              {isProvider && pointsBalance !== null && (
+              {/* НОВОЕ: Плашка PRO, если у пользователя isPro === true */}
+              {isProvider && isPro && (
+                <div className="flex items-center gap-1 bg-gradient-to-r from-purple-600 to-indigo-600 px-2.5 py-1.5 rounded-lg shadow-sm border border-purple-500 cursor-default" title="Aktywne konto PRO">
+                  <Star size={14} className="fill-yellow-400 text-yellow-400" />
+                  <span className="text-xs font-bold text-white tracking-wider">PRO</span>
+                </div>
+              )}
+
+              {/* Кошелек показываем всегда, но если есть PRO - поинты не так важны, хотя баланс пусть будет */}
+              {isProvider && pointsBalance !== null && !isPro && (
                 <Link 
                   href="/wallet" 
                   className="flex items-center gap-1.5 bg-purple-50 px-2.5 py-1.5 rounded-lg border border-purple-100 hover:bg-purple-100 transition-colors"
                 >
                   <Wallet size={15} className="text-razdwa-purple" />
                   <span className="text-sm font-bold text-razdwa-purple">{pointsBalance} pkt</span>
+                </Link>
+              )}
+
+              {/* Если юзер PRO, кошелек можно сделать менее заметным, чтобы не отвлекал */}
+              {isProvider && pointsBalance !== null && isPro && (
+                <Link 
+                  href="/wallet" 
+                  className="flex items-center gap-1.5 bg-gray-50 px-2 py-1.5 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors"
+                  title="Twój portfel"
+                >
+                  <Wallet size={14} className="text-gray-400" />
+                  <span className="text-xs font-semibold text-gray-500">{pointsBalance}</span>
                 </Link>
               )}
 
