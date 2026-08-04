@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-07-29.dahlia',
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(req: Request) {
   try {
     const { priceId, userId, isSubscription, pointsToGive } = await req.json();
 
+    // 1. АВТОМАТИЧЕСКИ получаем домен, с которого пришел запрос (например, https://www.razdwaszybko.pl)
+    // Если по какой-то причине заголовка нет, используем твой боевой домен как запасной вариант
+    const origin = req.headers.get('origin') || 'https://www.razdwaszybko.pl';
+
     if (!userId) {
       return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
     }
 
-    // ИСПРАВЛЕНИЕ ЗДЕСЬ: Для подписки оставляем только карты, для пакетов - карты и BLIK
     const paymentMethods = isSubscription ? ['card'] : ['card', 'blik'];
 
     const session = await stripe.checkout.sessions.create({
@@ -31,8 +32,10 @@ export async function POST(req: Request) {
         points: pointsToGive ? pointsToGive.toString() : '0'
       },
       client_reference_id: userId,
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/wallet?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/wallet?canceled=true`,
+      
+      // 2. ИСПОЛЬЗУЕМ НАШ origin ЗДЕСЬ
+      success_url: `${origin}/wallet?success=true`,
+      cancel_url: `${origin}/wallet?canceled=true`,
     });
 
     return NextResponse.json({ url: session.url });
