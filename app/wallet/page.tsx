@@ -83,24 +83,24 @@ export default function WalletPage() {
     }
   };
 
-  const handleBuyPackage = async (priceId: string, isPro: boolean) => {
+const handleBuyPackage = async (priceId: string, isPro: boolean) => {
     setLoadingPackageId(priceId);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) { /* ... */ return; }
 
-      if (!session?.user) {
-        alert('Musisz być zalogowany, aby dokonać zakupu.');
-        setLoadingPackageId(null);
-        return;
-      }
+      // НОВОЕ: Находим пакет, на который кликнули, чтобы узнать кол-во поинтов
+      const pkg = PACKAGES.find(p => p.id === priceId);
 
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          priceId,
+          priceId: priceId, 
           userId: session.user.id,
           isSubscription: isPro,
+          // НОВОЕ: Передаем точное число поинтов (или 0, если это PRO)
+          pointsToGive: isPro ? 0 : parseInt(pkg?.points || "0")
         }),
       });
 
