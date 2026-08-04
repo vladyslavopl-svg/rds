@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 
 const PACKAGES = [
   {
-    id: "price_1Tzu2MAQiCkL3kL2qyC79V6Y",
+    id: "price_1U0pVsAQiCkL3kL2G4pGWAfh",
     points: "15",
     price: "30 zł",
     description: "Idealny na start. 15 możliwości kontaktu z klientami.",
@@ -16,7 +16,7 @@ const PACKAGES = [
     isPro: false,
   },
   {
-    id: "price_1ТВОЙ_ID_ДЛЯ_35_PUNKTOW",
+    id: "price_1U0pUUAQiCkL3kL2caxhi5PC",
     points: "35",
     price: "60 zł",
     description: "Najlepszy wybór na początek tygodnia.",
@@ -24,7 +24,7 @@ const PACKAGES = [
     isPro: false,
   },
   {
-    id: "price_1ТВОЙ_ID_ДЛЯ_95_PUNKTOW",
+    id: "price_1U0pWVAQiCkL3kL2tE0vxWO9",
     points: "95",
     price: "150 zł",
     description: "Najczęściej wybierany przez aktywnych fachowców. Hit sprzedaży!",
@@ -32,7 +32,7 @@ const PACKAGES = [
     isPro: false,
   },
   {
-    id: "price_1ТВОЙ_ID_ДЛЯ_300_PUNKTOW",
+    id: "price_1U0pX9AQiCkL3kL2XdLwtQ8J",
     points: "300",
     price: "400 zł",
     description: "Zapas na długi czas. Najbardziej opłacalny pakiet jednorazowy.",
@@ -40,7 +40,7 @@ const PACKAGES = [
     isPro: false,
   },
   {
-    id: "price_1ТВОЙ_ID_ДЛЯ_PRO_ПОДПИСКИ",
+    id: "price_1U0phEAQiCkL3kL2XGFLXyjO",
     points: "PRO",
     price: "199 zł / mc",
     description: "Nielimitowane odpowiedzi przez miesiąc + widoczny status PRO (fioletowa gwiazdka na profilu).",

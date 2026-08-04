@@ -158,10 +158,21 @@ export const Header = () => {
           {session ? (
             <>
               {/* НОВОЕ: Плашка PRO, если у пользователя isPro === true */}
-              {isProvider && isPro && (
-                <div className="flex items-center gap-1 bg-gradient-to-r from-purple-600 to-indigo-600 px-2.5 py-1.5 rounded-lg shadow-sm border border-purple-500 cursor-default" title="Aktywne konto PRO">
-                  <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                  <span className="text-xs font-bold text-white tracking-wider">PRO</span>
+{isProvider && isPro && (
+                <div 
+                  className="relative flex items-center gap-1.5 bg-gradient-to-tr from-indigo-600 via-purple-600 to-fuchsia-500 px-3 py-1 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.4)] border border-white/25 cursor-default transition-all duration-300 hover:scale-105 hover:shadow-[0_0_15px_rgba(168,85,247,0.6)]" 
+                  title="Aktywne konto PRO"
+                >
+                  {/* Легкий блик сверху для объема */}
+                  <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent"></div>
+                  
+                  <Star 
+                    size={12} 
+                    className="fill-yellow-300 text-yellow-300 drop-shadow-[0_0_4px_rgba(253,224,71,0.8)] animate-pulse" 
+                  />
+                  <span className="text-[11px] font-black text-white tracking-[0.15em] uppercase drop-shadow-md mt-[1px]">
+                    PRO
+                  </span>
                 </div>
               )}
 
