@@ -20,7 +20,7 @@ export const Header = () => {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isMountedRef = useRef(true);
 
-  useEffect(() => {
+ useEffect(() => {
     isMountedRef.current = true;
 
     const cleanupChannel = async () => {
@@ -35,7 +35,8 @@ export const Header = () => {
 
       if (!isMountedRef.current) return;
 
-      const uniqueChannelName = `notifications-${userId}-${Date.now()}`;
+      // Używamy crypto.randomUUID() dla absolutnej gwarancji unikalności
+      const uniqueChannelName = `notifications-${userId}-${crypto.randomUUID()}`;
 
       const channel = supabase
         .channel(uniqueChannelName)
@@ -57,7 +58,6 @@ export const Header = () => {
 
       channelRef.current = channel;
 
-      // НОВОЕ: Добавили is_pro в запрос к базе данных
       const { data: profileData } = await supabase
         .from('profiles')
         .select('role, points_balance, is_pro')
@@ -69,7 +69,7 @@ export const Header = () => {
       if (profileData) {
         setIsProvider(profileData.role === 'provider');
         setPointsBalance(profileData.points_balance);
-        setIsPro(profileData.is_pro || false); // Сохраняем статус PRO
+        setIsPro(profileData.is_pro || false);
 
         if (profileData.role === 'provider') {
           const { data: notifsData } = await supabase
@@ -86,24 +86,18 @@ export const Header = () => {
       }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMountedRef.current) return;
-      setSession(session);
-      if (session?.user) {
-        initHeader(session.user.id);
-      }
-    });
-
+    // Zostawiamy TYLKO onAuthStateChange. 
+    // Automatycznie przechwytuje on początkową sesję (INITIAL_SESSION) przy montowaniu komponentu.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (!isMountedRef.current) return;
         
         setSession(session);
-        await cleanupChannel();
 
         if (session?.user) {
           initHeader(session.user.id);
         } else {
+          await cleanupChannel();
           setIsProvider(false);
           setPointsBalance(null);
           setIsPro(false);

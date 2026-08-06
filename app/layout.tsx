@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
+import Link from "next/link"; // Импортируем Link для быстрой навигации
 
 const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
@@ -32,9 +33,30 @@ export default function RootLayout({
             </div>
             
             {/* Основной контент */}
-            <main className="flex-1 w-full px-4 sm:px-6 md:px-8 pt-20 pb-28 transition-all duration-300">
+            <main className="flex-1 w-full px-4 sm:px-6 md:px-8 pt-20 transition-all duration-300">
               {children}
             </main>
+
+            {/* Футер с юридическими ссылками (Обязательно для Stripe) */}
+            <footer className="w-full px-4 py-8 pb-28 border-t border-gray-100 bg-white">
+              <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm text-gray-500">
+                <Link href="/terms" className="hover:text-razdwa-dark transition-colors">
+                  Regulamin
+                </Link>
+                <Link href="/privacy" className="hover:text-razdwa-dark transition-colors">
+                  Polityka Prywatności
+                </Link>
+                <Link href="/refunds" className="hover:text-razdwa-dark transition-colors">
+                  Zwroty i Reklamacje
+                </Link>
+                <Link href="/contact" className="hover:text-razdwa-dark transition-colors">
+                  Kontakt
+                </Link>
+              </div>
+              <div className="text-center mt-6 text-xs text-gray-400">
+                &copy; {new Date().getFullYear()} RazDwaSzybko.pl. Wszelkie prawa zastrzeżone.
+              </div>
+            </footer>
 
             {/* Обертка для нижней панели */}
             <div className="bottom-nav-wrapper z-50">
