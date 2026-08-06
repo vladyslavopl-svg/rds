@@ -25,6 +25,7 @@ export default function ProfilePage() {
   const [newImageUrl, setNewImageUrl] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPortal, setIsLoadingPortal] = useState(false); // Стейт для загрузки портала Stripe
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
   useEffect(() => {
@@ -217,6 +218,32 @@ export default function ProfilePage() {
     }
   };
 
+  const handleManageSubscription = async () => {
+    if (!session?.user?.id) return;
+    
+    setIsLoadingPortal(true);
+    try {
+      const res = await fetch('/api/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: session.user.id }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'Wystąpił błąd podczas ładowania portalu.');
+      }
+    } catch (err) {
+      console.error('Błąd:', err);
+      alert('Wystąpił błąd sieci.');
+    } finally {
+      setIsLoadingPortal(false);
+    }
+  };
+
   const addPortfolioImage = () => {
     if (!newImageUrl.trim()) return;
     setPortfolioImages([...portfolioImages, newImageUrl.trim()]);
@@ -248,7 +275,7 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 mb-5 flex items-center justify-between shadow-sm">
+      <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 mb-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-razdwa-purple text-white rounded-full flex items-center justify-center">
             <Wallet size={20} />
@@ -277,6 +304,20 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      {/* Кнопка управления подпиской PRO (Stripe Customer Portal) */}
+      {profile?.role === 'provider' && profile?.is_pro && (
+        <div className="mb-5">
+          <button
+            onClick={handleManageSubscription}
+            disabled={isLoadingPortal}
+            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2.5 px-4 rounded-xl text-xs font-bold shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Star size={14} className="fill-yellow-300 text-yellow-300" />
+            {isLoadingPortal ? 'Ładowanie portalu...' : 'Zarządzaj subskrypcją PRO (Anuluj)'}
+          </button>
+        </div>
+      )}
 
       {message && (
         <div className={`p-3 mb-4 rounded-xl text-sm font-medium text-center ${
