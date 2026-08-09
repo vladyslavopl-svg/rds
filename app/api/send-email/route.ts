@@ -41,8 +41,9 @@ export async function POST(req: Request) {
 
       if (clientEmail) {
         await resend.emails.send({
-          from: 'RazDwaSzybko <onboarding@resend.dev>',
+          from: 'RazDwaSzybko <support@razdwaszybko.pl>', // Используем верифицированный домен
           to: clientEmail,
+          replyTo: 'support@razdwaszybko.pl', // Куда клиент может ответить
           subject: `Nowa oferta do Twojego zlecenia: "${order.title}"`,
           html: `
             <div style="font-family: Arial, sans-serif; padding: 20px; color: #111827; max-width: 600px; margin: 0 auto;">
@@ -68,8 +69,9 @@ export async function POST(req: Request) {
 
       if (providerEmail) {
         await resend.emails.send({
-          from: 'RazDwaSzybko <onboarding@resend.dev>',
+          from: 'RazDwaSzybko <support@razdwaszybko.pl>', // Используем верифицированный домен
           to: providerEmail,
+          replyTo: 'support@razdwaszybko.pl', // Куда мастер может ответить
           subject: `Gratulacje! Wybrano Cię do zlecenia: "${order.title}"`,
           html: `
             <div style="font-family: Arial, sans-serif; padding: 20px; color: #111827; max-width: 600px; margin: 0 auto;">
