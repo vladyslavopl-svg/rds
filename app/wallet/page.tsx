@@ -15,6 +15,14 @@ const PACKAGES = [
     isPopular: false,
     isPro: false,
   },
+    {
+    id: "price_1U2gLbAQiCkL3kL2ZJVFKHcl",
+    points: "5",
+    price: "3 zł",
+    description: "Idealny na start. 15 możliwości kontaktu z klientami.",
+    isPopular: false,
+    isPro: false,
+  },
   {
     id: "price_1U2ftIAQiCkL3kL2KWbYto9Q",
     points: "35",
