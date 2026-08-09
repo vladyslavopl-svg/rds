@@ -47,7 +47,7 @@ export default function AdminPage() {
       return;
     }
 
-    // Если всё ок, подгружаем статистику
+    // Подгружаем статистику
     const { count: usersCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
     const { count: ordersCount } = await supabase.from('orders').select('*', { count: 'exact', head: true });
     setStats({ usersCount: usersCount || 0, ordersCount: ordersCount || 0 });
@@ -61,7 +61,6 @@ export default function AdminPage() {
     setCodeSent(false);
 
     try {
-      // Безопасный запрос через серверный API-роут
       const res = await fetch('/api/admin/get-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,7 +71,7 @@ export default function AdminPage() {
       if (!res.ok) throw new Error(data.error);
 
       setTargetUser(data.profile);
-      setEditName(data.profile.full_name || '');
+      setEditName(data.profile?.full_name || '');
       setTargetEmail(data.email || '');
       setEditEmail(data.email || '');
     } catch (err: any) {
@@ -85,6 +84,7 @@ export default function AdminPage() {
 
   // Шаг 1: Запрос кода подтверждения
   const requestAction = async (updates: any) => {
+    if (!targetUser) return;
     setLoading(true);
     setMessage(null);
     setPendingUpdates(updates);
@@ -109,7 +109,7 @@ export default function AdminPage() {
 
   // Шаг 2: Подтверждение кода и выполнение действия
   const confirmAndExecute = async () => {
-    if (!verificationCode.trim()) {
+    if (!targetUser || !verificationCode.trim()) {
       setMessage({ text: 'Wprowadź kod potwierdzenia.', type: 'error' });
       return;
     }
@@ -198,20 +198,20 @@ export default function AdminPage() {
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
           <div className="flex justify-between items-start">
             <div>
-              <h3 className="font-bold text-lg text-gray-900">{targetUser.full_name || 'Brak imienia'}</h3>
-              <p className="text-xs text-gray-400 font-mono">ID: {targetUser.id}</p>
+              <h3 className="font-bold text-lg text-gray-900">{targetUser?.full_name || 'Brak imienia'}</h3>
+              <p className="text-xs text-gray-400 font-mono">ID: {targetUser?.id}</p>
               <p className="text-xs text-gray-600 mt-1">E-mail: <strong>{targetEmail}</strong></p>
             </div>
             <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-              targetUser.is_banned ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
+              targetUser?.is_banned ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
             }`}>
-              {targetUser.is_banned ? 'Zablokowany' : 'Aktywny'}
+              {targetUser?.is_banned ? 'Zablokowany' : 'Aktywny'}
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-3 py-2 border-t border-b border-gray-50 text-sm">
-            <div>Balans: <strong>{targetUser.points_balance} pkt</strong></div>
-            <div>PRO status: <strong className={targetUser.is_pro ? 'text-violet-600' : 'text-gray-500'}>{targetUser.is_pro ? 'Tak' : 'Nie'}</strong></div>
+            <div>Balans: <strong>{targetUser?.points_balance || 0} pkt</strong></div>
+            <div>PRO status: <strong className={targetUser?.is_pro ? 'text-violet-600' : 'text-gray-500'}>{targetUser?.is_pro ? 'Tak' : 'Nie'}</strong></div>
           </div>
 
           {/* Форма редактирования */}
@@ -227,7 +227,7 @@ export default function AdminPage() {
                   onClick={() => requestAction({ 
                     full_name: editName, 
                     email: editEmail, 
-                    points_balance: pointsToAdd ? targetUser.points_balance + parseInt(pointsToAdd) : targetUser.points_balance 
+                    points_balance: pointsToAdd ? (targetUser?.points_balance || 0) + parseInt(pointsToAdd) : (targetUser?.points_balance || 0) 
                   })}
                 >
                   Zapisz dane / punkty
@@ -235,18 +235,18 @@ export default function AdminPage() {
 
                 <Button 
                   variant="outline" 
-                  onClick={() => requestAction({ is_pro: !targetUser.is_pro })}
+                  onClick={() => requestAction({ is_pro: !targetUser?.is_pro })}
                 >
-                  <Star size={14} className="mr-1" /> {targetUser.is_pro ? 'Usuń PRO' : 'Nadaj PRO'}
+                  <Star size={14} className="mr-1" /> {targetUser?.is_pro ? 'Usuń PRO' : 'Nadaj PRO'}
                 </Button>
 
                 <Button 
                   variant="outline" 
-                  className={targetUser.is_banned ? 'text-emerald-600' : 'text-red-600'}
-                  onClick={() => requestAction({ is_banned: !targetUser.is_banned })}
+                  className={targetUser?.is_banned ? 'text-emerald-600' : 'text-red-600'}
+                  onClick={() => requestAction({ is_banned: !targetUser?.is_banned })}
                 >
-                  {targetUser.is_banned ? <Unlock size={14} className="mr-1" /> : <Lock size={14} className="mr-1" />}
-                  {targetUser.is_banned ? 'Odblokuj' : 'Zablokuj'}
+                  {targetUser?.is_banned ? <Unlock size={14} className="mr-1" /> : <Lock size={14} className="mr-1" />}
+                  {targetUser?.is_banned ? 'Odblokuj' : 'Zablokuj'}
                 </Button>
               </div>
             ) : (
