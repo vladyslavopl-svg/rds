@@ -29,8 +29,15 @@ function LoginForm() {
 
     try {
       if (isLogin) {
+        // --- ВХОД ---
         const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('Błędny adres e-mail lub nieprawidłowe hasło. Sprawdź wpisane dane lub zarejestruj się.');
+          }
+          throw error;
+        }
         
         if (authData.user) {
           const { data: profile } = await supabase
@@ -50,6 +57,7 @@ function LoginForm() {
         setTimeout(() => router.push('/'), 1000);
         
       } else {
+        // --- РЕГИСТРАЦИЯ ---
         if (!fullName.trim() || !contactInfo.trim()) {
           throw new Error('Wypełnij imię, nazwisko oraz numer telefonu.');
         }
