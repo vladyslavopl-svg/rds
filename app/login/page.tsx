@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation'; // Добавили useSearchParams
+export const dynamic = 'force-dynamic';
+
+import React, { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { supabase } from '@/lib/supabase';
@@ -33,13 +35,15 @@ export default function LoginPage() {
         if (error) throw error;
         
         if (authData.user) {
+          // Проверяем, заблокирован ли пользователь
           const { data: profile } = await supabase
             .from('profiles')
             .select('is_banned, ban_reason')
             .eq('id', authData.user.id)
-            .single();
+            .maybeSingle();
 
           if (profile?.is_banned) {
+            // Выбрасываем из системы
             await supabase.auth.signOut();
             const reason = profile.ban_reason || 'Brak podanego powodu.';
             throw new Error(`Konto zostało zablokowane. Powód: ${reason}. W celu wyjaśnienia sytuacji prosimy o kontakt ze wsparciem: support@razdwaszybko.pl`);
@@ -80,17 +84,17 @@ export default function LoginPage() {
             }
           }
 
-          // Генерируем простой персональный реферальный код для нового пользователя (например, срез UUID)
+          // Генерируем персональный реферальный код для нового пользователя
           const myReferralCode = data.user.id.replace(/-/g, '').substring(0, 8);
 
-          // Создаем профиль нового пользователя
+          // Создаем профиль в таблице profiles
           const { error: profileError } = await supabase.from('profiles').upsert([
             { 
               id: data.user.id, 
               full_name: fullName,
               contact_info: contactInfo,
               role: 'provider', 
-              points_balance: 10, // Базовые поинты при регистрации
+              points_balance: 10,
               referral_code: myReferralCode,
               invited_by: referrerId
             }
@@ -110,7 +114,6 @@ export default function LoginPage() {
 
   return (
     <div className="p-6 flex flex-col justify-center min-h-[75vh] max-w-md mx-auto">
-      {/* ... остальной интерфейс формы входа/регистрации без изменений ... */}
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           {isLogin ? 'Witaj ponownie! 👋' : 'Dołącz do nas! 🚀'}
