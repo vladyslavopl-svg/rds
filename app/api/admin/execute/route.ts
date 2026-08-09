@@ -8,42 +8,24 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { targetUserId, code, updates } = await req.json();
+    const { targetUserId, updates } = await req.json();
 
-    // Достаем профиль для проверки кода
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('admin_code, admin_code_expires_at')
-      .eq('id', targetUserId)
-      .single();
-
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'Nie znaleziono użytkownika.' }, { status: 404 });
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'Brak ID użytkownika.' }, { status: 400 });
     }
 
-    if (!profile.admin_code || profile.admin_code !== code) {
-      return NextResponse.json({ error: 'Nieprawidłowy kod potwierdzenia.' }, { status: 400 });
-    }
-
-    if (new Date() > new Date(profile.admin_code_expires_at)) {
-      return NextResponse.json({ error: 'Kod wygasł. Wyślij nowy.' }, { status: 400 });
-    }
-
-    // Если код верный, применяем обновления (и очищаем код)
-    const updateData: any = { ...updates, admin_code: null, admin_code_expires_at: null };
-
-    // Если меняется email, обновляем через Auth Admin
-    if (updates.email) {
-      await supabase.auth.admin.updateUserById(targetUserId, { email: updates.email });
-      delete updateData.email; // убираем из апдейта profiles, если там нет такой колонки
-    }
-
+    // Обновляем профиль (например, is_banned и ban_reason)
     const { error: updateError } = await supabase
       .from('profiles')
-      .update(updateData)
+      .update(updates)
       .eq('id', targetUserId);
 
     if (updateError) throw updateError;
+
+    // Если пользователя заблокировали, сразу сбрасываем его активные сессии (выкидываем из аккаунта)
+    if (updates.is_banned === true) {
+      await supabase.auth.admin.signOut(targetUserId);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

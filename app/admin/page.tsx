@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [pointsToAdd, setPointsToAdd] = useState('');
+  const [banReasonInput, setBanReasonInput] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [pendingUpdates, setPendingUpdates] = useState<any>(null);
@@ -74,6 +75,7 @@ export default function AdminPage() {
       setEditName(data.profile?.full_name || '');
       setTargetEmail(data.email || '');
       setEditEmail(data.email || '');
+      setBanReasonInput(data.profile?.ban_reason || '');
     } catch (err: any) {
       setMessage({ text: err.message || 'Nie znaleziono użytkownika o takim ID.', type: 'error' });
       setTargetUser(null);
@@ -82,7 +84,47 @@ export default function AdminPage() {
     }
   };
 
-  // Шаг 1: Запрос кода подтверждения
+  // Моментальная блокировка/разблокировка без кода
+  const handleToggleBan = async () => {
+    if (!targetUser) return;
+    const newBanStatus = !targetUser.is_banned;
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/admin/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUserId: targetUser.id,
+          updates: {
+            is_banned: newBanStatus,
+            ban_reason: newBanStatus ? (banReasonInput || 'Naruszenie regulaminu platformy.') : null
+          }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setTargetUser({
+        ...targetUser,
+        is_banned: newBanStatus,
+        ban_reason: newBanStatus ? (banReasonInput || 'Naruszenie regulaminu platformy.') : null
+      });
+
+      setMessage({ 
+        text: newBanStatus ? 'Użytkownik został zablokowany i wylogowany.' : 'Użytkownik został odblokowany.', 
+        type: 'success' 
+      });
+    } catch (err: any) {
+      setMessage({ text: err.message, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Шаг 1: Запрос кода подтверждения (для остальных изменений: данных, поинтов, PRO)
   const requestAction = async (updates: any) => {
     if (!targetUser) return;
     setLoading(true);
@@ -107,7 +149,7 @@ export default function AdminPage() {
     }
   };
 
-  // Шаг 2: Подтверждение кода и выполнение действия
+  // Шаг 2: Подтверждение кода и выполнение изменения данных/поинтов/PRO
   const confirmAndExecute = async () => {
     if (!targetUser || !verificationCode.trim()) {
       setMessage({ text: 'Wprowadź kod potwierdzenia.', type: 'error' });
@@ -214,8 +256,34 @@ export default function AdminPage() {
             <div>PRO status: <strong className={targetUser?.is_pro ? 'text-violet-600' : 'text-gray-500'}>{targetUser?.is_pro ? 'Tak' : 'Nie'}</strong></div>
           </div>
 
-          {/* Форма редактирования */}
-          <div className="flex flex-col gap-3">
+          {/* Блок управления блокировкой (моментально) */}
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-2.5">
+            <h4 className="font-bold text-xs text-gray-700 uppercase tracking-wider">Zarządzanie blokadą</h4>
+            {targetUser?.is_banned ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-red-600">Powód: {targetUser?.ban_reason || 'Brak powódu'}</p>
+                <Button variant="outline" className="text-emerald-600" onClick={handleToggleBan} disabled={loading}>
+                  <Unlock size={14} className="mr-1" /> Odblokuj użytkownika
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Input 
+                  label="Powód blokady" 
+                  placeholder="np. Oszustwo, spam..." 
+                  value={banReasonInput}
+                  onChange={(e) => setBanReasonInput(e.target.value)}
+                />
+                <Button variant="outline" className="text-red-600" onClick={handleToggleBan} disabled={loading}>
+                  <Lock size={14} className="mr-1" /> Zablokuj natychmiast
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Форма редактирования данных / поинтов / PRO (с кодом подтверждения) */}
+          <div className="flex flex-col gap-3 pt-2 border-t border-gray-100">
+            <h4 className="font-bold text-xs text-gray-700 uppercase tracking-wider">Edycja danych (wymaga kodu e-mail)</h4>
             <Input label="Imię / Nazwa" value={editName} onChange={(e) => setEditName(e.target.value)} />
             <Input label="E-mail" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
             <Input label="Dodaj / Odejmij punkty (np. 10 lub -5)" value={pointsToAdd} onChange={(e) => setPointsToAdd(e.target.value)} placeholder="0" />
@@ -229,6 +297,7 @@ export default function AdminPage() {
                     email: editEmail, 
                     points_balance: pointsToAdd ? (targetUser?.points_balance || 0) + parseInt(pointsToAdd) : (targetUser?.points_balance || 0) 
                   })}
+                  disabled={loading}
                 >
                   Zapisz dane / punkty
                 </Button>
@@ -236,17 +305,9 @@ export default function AdminPage() {
                 <Button 
                   variant="outline" 
                   onClick={() => requestAction({ is_pro: !targetUser?.is_pro })}
+                  disabled={loading}
                 >
                   <Star size={14} className="mr-1" /> {targetUser?.is_pro ? 'Usuń PRO' : 'Nadaj PRO'}
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className={targetUser?.is_banned ? 'text-emerald-600' : 'text-red-600'}
-                  onClick={() => requestAction({ is_banned: !targetUser?.is_banned })}
-                >
-                  {targetUser?.is_banned ? <Unlock size={14} className="mr-1" /> : <Lock size={14} className="mr-1" />}
-                  {targetUser?.is_banned ? 'Odblokuj' : 'Zablokuj'}
                 </Button>
               </div>
             ) : (

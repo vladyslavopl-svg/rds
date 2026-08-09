@@ -12,8 +12,8 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState(''); // Новое поле: Имя и Фамилия
-  const [contactInfo, setContactInfo] = useState(''); // Новое поле: Телефон
+  const [fullName, setFullName] = useState(''); 
+  const [contactInfo, setContactInfo] = useState(''); 
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
@@ -25,9 +25,25 @@ export default function LoginPage() {
     try {
       if (isLogin) {
         // --- ВХОД ---
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         
+        if (authData.user) {
+          // Проверяем, заблокирован ли пользователь
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_banned, ban_reason')
+            .eq('id', authData.user.id)
+            .single();
+
+          if (profile?.is_banned) {
+            // Выбрасываем из системы
+            await supabase.auth.signOut();
+            const reason = profile.ban_reason || 'Brak podanego powodu.';
+            throw new Error(`Konto zostało zablokowane. Powód: ${reason}`);
+          }
+        }
+
         setMessage({ text: 'Zalogowano pomyślnie! 🎉', type: 'success' });
         setTimeout(() => router.push('/'), 1000);
         

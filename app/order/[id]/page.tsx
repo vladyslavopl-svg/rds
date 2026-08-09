@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Tag, Clock, ChevronLeft, User, MessageSquare, Phone, MapPin, Calendar, Star, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { ReportButton } from '@/components/ui/ReportButton';
 
 // Функция расчета стоимости отклика в зависимости от бюджета заказа
 const calculateRequiredPoints = (budgetString: string) => {
@@ -757,12 +758,13 @@ export default function OrderDetailsPage() {
               </div>
             )}
             
-            {hasApplied ? (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 shadow-sm">
-                <div className="text-emerald-700 font-bold text-sm flex items-center gap-2 mb-2">
+{hasApplied ? (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                <div className="text-emerald-700 font-bold text-sm flex items-center justify-between">
                   <span>✓ Oferta została złożona</span>
+                  <ReportButton reportedUserId={order.user_id} userRole="client" />
                 </div>
-                <p className="text-xs text-gray-600 mb-3">
+                <p className="text-xs text-gray-600">
                   Możesz skontaktować się z klientem:
                 </p>
                 <div className="flex items-center gap-2">
@@ -794,6 +796,7 @@ export default function OrderDetailsPage() {
                   </button>
                 </div>
               </div>
+              
             ) : order.status === 'in_progress' ? (
               <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
                 <p className="text-sm font-bold text-amber-900 mb-1">Zlecenie w trakcie realizacji</p>
