@@ -33,21 +33,23 @@ export async function POST(req: Request) {
     const addedPoints = parseInt(session.metadata?.points || '0');
 
     if (userId) {
-      if (isPro) {
-        // 1. АКТИВИРУЕМ PRO НА 31 ДЕНЬ
-        const expireDate = new Date();
-        expireDate.setDate(expireDate.getDate() + 31); // Текущая дата + 31 день
+if (isPro) {
+  // 1. АКТИВИРУЕМ PRO НА 31 ДЕНЬ
+  const expireDate = new Date();
+  expireDate.setDate(expireDate.getDate() + 31);
 
-        await supabaseAdmin
-          .from('profiles')
-          .update({ 
-            is_pro: true,
-            pro_expires_at: expireDate.toISOString() 
-          })
-          .eq('id', userId);
-          
-        console.log(`Пользователь ${userId} получил статус PRO!`);
-      } 
+  await supabaseAdmin
+    .from('profiles')
+    .update({ 
+      is_pro: true,
+      pro_expires_at: expireDate.toISOString(),
+      stripe_customer_id: session.customer as string, // ← ЭТОГО НЕ ХВАТАЛО
+    })
+    .eq('id', userId);
+    
+  console.log(`Пользователь ${userId} получил статус PRO!`);
+}
+
       else if (addedPoints > 0) {
         // 2. НАЧИСЛЯЕМ ПОИНТЫ (Если это не PRO)
         const { data: profile } = await supabaseAdmin
