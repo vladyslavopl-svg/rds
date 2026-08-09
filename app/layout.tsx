@@ -1,17 +1,36 @@
-
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import Link from "next/link";
-import Script from "next/script"; // Импортируем компонент Script
+import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
+// Улучшенный блок метаданных для SEO
 export const metadata: Metadata = {
-  title: "Zlecenia i Fachowcy",
-  description: "Platforma freelance dla rynku Polski",
+  metadataBase: new URL("https://www.razdwaszybko.pl"),
+  title: {
+    default: "RazDwaSzybko — Zlecenia i Fachowci w Polsce",
+    template: "%s | RazDwaSzybko",
+  },
+  description: "Platforma freelance dla rynku Polski. Znajdź fachowca lub dodaj zlecenie w kilka chwil.",
+  keywords: ["zlecenia", "fachowci", "usługi", "freelance", "Polska", "ogłoszenia"],
+  authors: [{ name: "RazDwaSzybko" }],
+  creator: "RazDwaSzybko",
+  openGraph: {
+    type: "website",
+    locale: "pl_PL",
+    url: "https://www.razdwaszybko.pl",
+    title: "RazDwaSzybko — Zlecenia i Fachowci",
+    description: "Znajdź sprawdzonego fachowca lub dodaj zlecenie w kilka chwil.",
+    siteName: "RazDwaSzybko",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
@@ -70,7 +89,6 @@ export default function RootLayout({
                 <Link href="/privacy" className="hover:text-razdwa-dark transition-colors">Polityka Prywatności</Link>
                 <Link href="/refunds" className="hover:text-razdwa-dark transition-colors">Zwroty i Reklamacje</Link>
                 <Link href="/contact" className="hover:text-razdwa-dark transition-colors">Kontakt</Link>
-                {/* Ссылка для изменения настроек куки */}
                 <a href="#" id="open_preferences_center" className="hover:text-razdwa-dark transition-colors">
                   Ustawienia cookies
                 </a>

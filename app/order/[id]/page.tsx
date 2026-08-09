@@ -7,6 +7,41 @@ import { Tag, Clock, ChevronLeft, User, MessageSquare, Phone, MapPin, Calendar, 
 import { Button } from '@/components/ui/Button';
 import { ReportButton } from '@/components/ui/ReportButton';
 
+import type { Metadata } from 'next';
+
+type Props = {
+  params: { id: string };
+};
+
+// Динамические мета-теги для каждого заказа
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  if (!params.id) {
+    return { title: 'Zlecenie | RazDwaSzybko' };
+  }
+
+  const { data: order } = await supabase
+    .from('orders')
+    .select('title, description, category, location, budget')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  if (!order) {
+    return { title: 'Zlecenie nie zostało znalezione | RazDwaSzybko' };
+  }
+
+  const cleanDescription = order.description ? order.description.substring(0, 150) + '...' : '';
+
+  return {
+    title: `${order.title} — ${order.location || 'Polska'}`,
+    description: `${cleanDescription} Budżet: ${order.budget || 'Do negocjacji'}. Znajdź fachowca na RazDwaSzybko.`,
+    openGraph: {
+      title: `${order.title} | RazDwaSzybko`,
+      description: cleanDescription,
+      type: 'article',
+    },
+  };
+}
+
 // Функция расчета стоимости отклика в зависимости от бюджета заказа
 const calculateRequiredPoints = (budgetString: string) => {
   if (!budgetString) return 1;
@@ -47,6 +82,31 @@ export default function OrderDetailsPage() {
   const [rating, setRating] = useState<number>(5);
   const [comment, setComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  {order && (
+  <script
+    type="application/ld+json"
+    dangerouslySetInnerHTML={{
+      __html: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Task",
+        "name": order.title,
+        "description": order.description,
+        "category": order.category,
+        "jobLocation": {
+          "@type": "Place",
+          "name": order.location || "Polska"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": order.budget ? order.budget.replace(/\D/g, '') : "0",
+          "priceCurrency": "PLN"
+        },
+        "datePosted": order.created_at
+      })
+    }}
+  />
+)}
 
   useEffect(() => {
     const fetchData = async () => {

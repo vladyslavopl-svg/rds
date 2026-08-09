@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 
 const PACKAGES = [
   {
-    id: "price_1U0pVsAQiCkL3kL2G4pGWAfh",
+    id: "price_1U2frQAQiCkL3kL2TuFvJr7H",
     points: "15",
     price: "30 zł",
     description: "Idealny na start. 15 możliwości kontaktu z klientami.",
@@ -16,7 +16,7 @@ const PACKAGES = [
     isPro: false,
   },
   {
-    id: "price_1U0pUUAQiCkL3kL2caxhi5PC",
+    id: "price_1U2ftIAQiCkL3kL2KWbYto9Q",
     points: "35",
     price: "60 zł",
     description: "Najlepszy wybór na początek tygodnia.",
@@ -24,7 +24,7 @@ const PACKAGES = [
     isPro: false,
   },
   {
-    id: "price_1U0pWVAQiCkL3kL2tE0vxWO9",
+    id: "price_1U2ftmAQiCkL3kL2xWnhIuUT",
     points: "95",
     price: "150 zł",
     description: "Najczęściej wybierany przez aktywnych fachowców.",
@@ -32,7 +32,7 @@ const PACKAGES = [
     isPro: false,
   },
   {
-    id: "price_1U0pX9AQiCkL3kL2XdLwtQ8J",
+    id: "price_1U2fuBAQiCkL3kL2eUAyXZRx",
     points: "300",
     price: "400 zł",
     description: "Zapas na długi czas. Najbardziej opłacalny pakiet.",
@@ -40,7 +40,7 @@ const PACKAGES = [
     isPro: false,
   },
   {
-    id: "price_1U0phEAQiCkL3kL2XGFLXyjO",
+    id: "price_1U2fuxAQiCkL3kL2r7AXEskN",
     points: "PRO",
     price: "199 zł / mc",
     description: "Nielimitowane odpowiedzi + widoczny status PRO.",
