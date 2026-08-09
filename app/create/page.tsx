@@ -84,6 +84,27 @@ export default function CreateOrderPage() {
         return;
       }
 
+      // --- АВТОМАТИЧЕСКАЯ МОДЕРАЦИЯ (ПРОВЕРКА СТОП-СЛОВ) ---
+      const { data: stopWords } = await supabase.from('auto_mod_stopwords').select('word');
+      const fullText = `${title} ${description}`.toLowerCase();
+
+      let isRejected = false;
+      if (stopWords) {
+        for (const item of stopWords) {
+          if (item.word && fullText.includes(item.word.toLowerCase())) {
+            isRejected = true;
+            break;
+          }
+        }
+      }
+
+      if (isRejected) {
+        setError('Twoje ogłoszenie zostało odrzucone przez system automatycznej moderacji (naruszenie regulaminu / niedozwolone słowa).');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Если проверка прошла успешно, публикуем со статусом 'active'
       const { error: insertError } = await supabase.from('orders').insert([
         {
           user_id: session.user.id,
@@ -92,7 +113,8 @@ export default function CreateOrderPage() {
           category,
           deadline,
           description,
-          budget, // Теперь обязательное поле
+          budget,
+          status: 'active'
         }
       ]);
 
@@ -241,7 +263,7 @@ export default function CreateOrderPage() {
           />
         </div>
 
-        {/* Budget - Now Required */}
+        {/* Budget */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
             <DollarSign size={14} className="text-violet-500" />

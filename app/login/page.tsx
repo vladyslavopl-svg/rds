@@ -14,7 +14,6 @@ function LoginForm() {
   
   const refCode = searchParams.get('ref');
 
-  // Если есть реферальный код в URL, сразу открываем форму регистрации (isLogin = false)
   const [isLogin, setIsLogin] = useState(!refCode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -69,6 +68,20 @@ function LoginForm() {
           throw new Error('Wypełnij imię, nazwisko oraz numer telefonu.');
         }
 
+        // Проверка черного списка доменов почты (Антиспам)
+        const emailDomain = email.split('@')[1]?.toLowerCase();
+        if (emailDomain) {
+          const { data: blacklisted } = await supabase
+            .from('email_blacklist')
+            .select('id')
+            .eq('domain', emailDomain)
+            .maybeSingle();
+
+          if (blacklisted) {
+            throw new Error('Rejestracja z tej domeny pocztowej została zablokowana ze względów bezpieczeństwa.');
+          }
+        }
+
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         
@@ -76,9 +89,7 @@ function LoginForm() {
           let referrerId = null;
 
           if (refCode) {
-            console.log('Szukam polecającego z kodem:', refCode);
-            
-            const { data: referrerProfile, error: refErr } = await supabase
+            const { data: referrerProfile } = await supabase
               .from('profiles')
               .select('id, points_balance')
               .eq('referral_code', refCode)
@@ -88,18 +99,10 @@ function LoginForm() {
               referrerId = referrerProfile.id;
               const currentBalance = referrerProfile.points_balance || 0;
 
-              const { error: updateErr } = await supabase
+              await supabase
                 .from('profiles')
                 .update({ points_balance: currentBalance + 4 })
                 .eq('id', referrerId);
-
-              if (updateErr) {
-                console.error('Błąd aktualizacji punktów polecającego:', updateErr);
-              } else {
-                console.log('Pomyślnie dodano 4 punkty polecającemu!');
-              }
-            } else {
-              console.warn('Nie znaleziono profilu z takim kodem polecenia.');
             }
           }
 

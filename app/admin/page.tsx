@@ -5,14 +5,25 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Shield, Users, ClipboardList, Search, Lock, Unlock, Star, Ticket, Plus, Trash2, UserCheck } from 'lucide-react';
+import { 
+  Shield, Users, ClipboardList, Search, Lock, Unlock, Star, Ticket, 
+  Plus, Trash2, UserCheck, Award, Wallet, UserPlus, Mail, ShieldAlert, 
+  FileText, Send, AlertTriangle, Ban, CheckCircle2, X, ChevronRight
+} from 'lucide-react';
 
 export default function AdminPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'users' | 'promos'>('users'); // Управление вкладками
-  const [stats, setStats] = useState({ usersCount: 0, ordersCount: 0 });
+  const [activeTab, setActiveTab] = useState<'users' | 'promos' | 'orders' | 'broadcasts' | 'logs' | 'moderation'>('users');
   
-  // Состояния для вкладки промокодов
+  const [stats, setStats] = useState({ 
+    usersCount: 0, 
+    ordersCount: 0, 
+    proCount: 0, 
+    totalPoints: 0, 
+    referredCount: 0 
+  });
+  
+  // Промокоды
   const [promoList, setPromoList] = useState<any[]>([]);
   const [showPromoForm, setShowPromoForm] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState('');
@@ -22,7 +33,7 @@ export default function AdminPage() {
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoMessage, setPromoMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
-  // Состояния для вкладки пользователей
+  // Управление пользователями
   const [searchId, setSearchId] = useState('');
   const [targetUser, setTargetUser] = useState<any>(null);
   const [targetEmail, setTargetEmail] = useState('');
@@ -36,488 +47,707 @@ export default function AdminPage() {
   const [codeSent, setCodeSent] = useState(false);
   const [pendingUpdates, setPendingUpdates] = useState<any>(null);
 
+  // Модерация заказов
+  const [ordersList, setOrdersList] = useState<any[]>([]);
+
+  // Авто-модерация (стоп-слова)
+  const [stopwordsList, setStopwordsList] = useState<any[]>([]);
+  const [newStopword, setNewStopword] = useState('');
+
+  // Рассылки и черный список
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [blacklistInput, setBlacklistInput] = useState('');
+  const [blacklist, setBlacklist] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
   useEffect(() => {
-    checkAdminAndFetchStats();
-    fetchPromoCodes();
+    checkAdminAndFetchData();
   }, []);
 
-  const fetchPromoCodes = async () => {
-    const { data, error } = await supabase
-      .from('promo_codes')
-      .select('*')
-      .order('code', { ascending: true });
-    
-    if (data) {
-      setPromoList(data);
-    } else if (error) {
-      console.error('Błąd pobierania kodów:', error.message);
-    }
-  };
-
-  const checkAdminAndFetchStats = async () => {
+  const checkAdminAndFetchData = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      router.push('/login');
-      return;
-    }
+    if (!session) { router.push('/login'); return; }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', session.user.id)
-      .single();
+    const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single();
+    if (!profile || profile.is_admin !== true) { router.push('/'); return; }
 
-    if (!profile || profile.is_admin !== true) {
-      router.push('/');
-      return;
-    }
-
+    // Загрузка статистики
     const { count: usersCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
     const { count: ordersCount } = await supabase.from('orders').select('*', { count: 'exact', head: true });
-    setStats({ usersCount: usersCount || 0, ordersCount: ordersCount || 0 });
+    const { data: profilesData } = await supabase.from('profiles').select('is_pro, points_balance, invited_by');
+    
+    let proCount = 0, totalPoints = 0, referredCount = 0;
+    if (profilesData) {
+      profilesData.forEach((p) => {
+        if (p.is_pro) proCount++;
+        totalPoints += p.points_balance || 0;
+        if (p.invited_by) referredCount++;
+      });
+    }
+
+    setStats({ usersCount: usersCount || 0, ordersCount: ordersCount || 0, proCount, totalPoints, referredCount });
+
+    // Загрузка данных для вкладок
+    fetchPromoCodes();
+    fetchOrders();
+    fetchStopwords();
+    fetchBlacklist();
+    fetchLogs(session.user.id);
   };
 
+  const fetchPromoCodes = async () => {
+    const { data } = await supabase.from('promo_codes').select('*').order('code', { ascending: true });
+    if (data) setPromoList(data);
+  };
+
+  const fetchOrders = async () => {
+    const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(50);
+    if (data) setOrdersList(data);
+  };
+
+  const fetchStopwords = async () => {
+    const { data } = await supabase.from('auto_mod_stopwords').select('*');
+    if (data) setStopwordsList(data);
+  };
+
+  const fetchBlacklist = async () => {
+    const { data } = await supabase.from('email_blacklist').select('*');
+    if (data) setBlacklist(data);
+  };
+
+  const fetchLogs = async (adminId: string) => {
+    const { data } = await supabase.from('admin_logs').select('*').order('created_at', { ascending: false }).limit(30);
+    if (data) setAuditLogs(data);
+
+    await supabase.from('admin_logs').insert([{ admin_id: adminId, action: 'OPEN_ADMIN_PANEL', details: 'Otwarto panel administratora.' }]);
+  };
+
+  const logAdminAction = async (action: string, details: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await supabase.from('admin_logs').insert([{ admin_id: session.user.id, action, details }]);
+  };
+
+  // Поиск пользователя
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchId.trim()) return;
-    setLoading(true);
-    setMessage(null);
-    setCodeSent(false);
-
+    setLoading(true); setMessage(null); setCodeSent(false);
     try {
       const res = await fetch('/api/admin/get-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: searchId.trim() })
       });
-      
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-
       setTargetUser(data.profile);
       setEditName(data.profile?.full_name || '');
       setTargetEmail(data.email || '');
       setEditEmail(data.email || '');
       setBanReasonInput(data.profile?.ban_reason || '');
     } catch (err: any) {
-      setMessage({ text: err.message || 'Nie znaleziono użytkownika o takim ID.', type: 'error' });
+      setMessage({ text: err.message || 'Nie znaleziono.', type: 'error' });
       setTargetUser(null);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
+  // Блокировка
   const handleToggleBan = async () => {
     if (!targetUser) return;
     const newBanStatus = !targetUser.is_banned;
-
     setLoading(true);
-    setMessage(null);
-
     try {
       const res = await fetch('/api/admin/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetUserId: targetUser.id,
-          updates: {
-            is_banned: newBanStatus,
-            ban_reason: newBanStatus ? (banReasonInput || 'Naruszenie regulaminu platformy.') : null
-          }
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: targetUser.id, updates: { is_banned: newBanStatus, ban_reason: newBanStatus ? (banReasonInput || 'Zbanowany') : null } })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      setTargetUser({
-        ...targetUser,
-        is_banned: newBanStatus,
-        ban_reason: newBanStatus ? (banReasonInput || 'Naruszenie regulaminu platformy.') : null
-      });
-
-      setMessage({ 
-        text: newBanStatus ? 'Użytkownik został zablokowany i wylogowany.' : 'Użytkownik został odblokowany.', 
-        type: 'success' 
-      });
-    } catch (err: any) {
-      setMessage({ text: err.message, type: 'error' });
-    } finally {
-      setLoading(false);
-    }
+      if (!res.ok) throw new Error('Błąd');
+      setTargetUser({ ...targetUser, is_banned: newBanStatus });
+      await logAdminAction('TOGGLE_BAN', `Zmieniono status bana użytkownika ${targetUser.id} na ${newBanStatus}`);
+      setMessage({ text: newBanStatus ? 'Zablokowano.' : 'Odblokowano.', type: 'success' });
+    } catch (err: any) { setMessage({ text: err.message, type: 'error' }); }
+    finally { setLoading(false); }
   };
 
   const requestAction = async (updates: any) => {
     if (!targetUser) return;
-    setLoading(true);
-    setMessage(null);
-    setPendingUpdates(updates);
-
+    setLoading(true); setPendingUpdates(updates);
     try {
-      const res = await fetch('/api/admin/send-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId: targetUser.id })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
+      await fetch('/api/admin/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetUserId: targetUser.id }) });
       setCodeSent(true);
-      setMessage({ text: 'Kod potwierdzenia został wysłany na e-mail użytkownika!', type: 'success' });
-    } catch (err: any) {
-      setMessage({ text: err.message, type: 'error' });
-    } finally {
-      setLoading(false);
-    }
+      setMessage({ text: 'Kod wysłany na e-mail!', type: 'success' });
+    } catch (err: any) { setMessage({ text: err.message, type: 'error' }); }
+    finally { setLoading(false); }
   };
 
   const confirmAndExecute = async () => {
-    if (!targetUser || !verificationCode.trim()) {
-      setMessage({ text: 'Wprowadź kod potwierdzenia.', type: 'error' });
-      return;
-    }
-
+    if (!targetUser || !verificationCode.trim()) return;
     setLoading(true);
     try {
       const res = await fetch('/api/admin/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetUserId: targetUser.id,
-          code: verificationCode.trim(),
-          updates: pendingUpdates
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: targetUser.id, code: verificationCode.trim(), updates: pendingUpdates })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      setMessage({ text: 'Operacja została pomyślnie wykonana! ✓', type: 'success' });
-      setCodeSent(false);
-      setVerificationCode('');
-      handleSearch(new Event('submit') as any);
-    } catch (err: any) {
-      setMessage({ text: err.message, type: 'error' });
-    } finally {
-      setLoading(false);
-    }
+      if (!res.ok) throw new Error('Błąd weryfikacji');
+      setMessage({ text: 'Zaktualizowano pomyślnie!', type: 'success' });
+      setCodeSent(false); setVerificationCode('');
+      await logAdminAction('EDIT_USER_DATA', `Zaktualizowano dane użytkownika ${targetUser.id}`);
+    } catch (err: any) { setMessage({ text: err.message, type: 'error' }); }
+    finally { setLoading(false); }
   };
 
+  // Удаление заказа модератором
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm('Czy na pewno chcesz usunąć to ogłoszenie?')) return;
+    await supabase.from('orders').delete().eq('id', orderId);
+    await logAdminAction('DELETE_ORDER', `Usunięto ogłoszenie ID: ${orderId}`);
+    fetchOrders();
+  };
+
+  // Создание промокода
   const handleCreatePromoCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!promoCodeInput.trim()) {
-      setPromoMessage({ text: 'Wpisz nazwę kodu.', type: 'error' });
-      return;
-    }
-
+    if (!promoCodeInput.trim()) return;
     setPromoLoading(true);
-    setPromoMessage(null);
-
     try {
-      const { error } = await supabase.from('promo_codes').insert([
-        {
-          code: promoCodeInput.trim().toUpperCase(),
-          description: promoDescription.trim() || null,
-          months_valid: parseInt(promoMonths) || 2,
-          expires_at: promoExpiresAt ? new Date(promoExpiresAt).toISOString() : null,
-          is_active: true
-        }
-      ]);
-
-      if (error) throw error;
-
-      setPromoMessage({ text: 'Kod promocyjny został pomyślnie utworzony! 🎉', type: 'success' });
-      setPromoCodeInput('');
-      setPromoDescription('');
-      setPromoMonths('2');
-      setPromoExpiresAt('');
-      setShowPromoForm(false); 
-      fetchPromoCodes();
-    } catch (err: any) {
-      setPromoMessage({ text: err.message || 'Wystąpił błąd podczas tworzenia kodu.', type: 'error' });
-    } finally {
-      setPromoLoading(false);
-    }
+      await supabase.from('promo_codes').insert([{ code: promoCodeInput.trim().toUpperCase(), description: promoDescription, months_valid: parseInt(promoMonths) || 2, is_active: true }]);
+      await logAdminAction('CREATE_PROMO', `Utworzono kod: ${promoCodeInput.toUpperCase()}`);
+      setPromoMessage({ text: 'Kod utworzony!', type: 'success' });
+      setPromoCodeInput(''); setPromoDescription(''); setShowPromoForm(false); fetchPromoCodes();
+    } catch (err: any) { setPromoMessage({ text: err.message, type: 'error' }); }
+    finally { setPromoLoading(false); }
   };
 
   const handleDeletePromo = async (id: string) => {
-    try {
-      const { error } = await supabase.from('promo_codes').delete().eq('id', id);
-      if (error) throw error;
-      fetchPromoCodes();
-    } catch (err: any) {
-      alert('Błąd usuwania: ' + err.message);
+    await supabase.from('promo_codes').delete().eq('id', id);
+    await logAdminAction('DELETE_PROMO', `Usunięto kod ID: ${id}`);
+    fetchPromoCodes();
+  };
+
+  // Управление стоп-словами
+  const handleAddStopword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStopword.trim()) return;
+    await supabase.from('auto_mod_stopwords').insert([{ word: newStopword.trim().toLowerCase() }]);
+    await logAdminAction('ADD_STOPWORD', `Dodano stop-słowo: ${newStopword.trim()}`);
+    setNewStopword('');
+    fetchStopwords();
+  };
+
+  const handleDeleteStopword = async (id: string) => {
+    await supabase.from('auto_mod_stopwords').delete().eq('id', id);
+    fetchStopwords();
+  };
+
+  // Добавление домена в черный список
+  const handleAddBlacklist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blacklistInput.trim()) return;
+    await supabase.from('email_blacklist').insert([{ domain: blacklistInput.trim().toLowerCase() }]);
+    await logAdminAction('ADD_BLACKLIST', `Zablokowano domenę: ${blacklistInput.trim()}`);
+    setBlacklistInput(''); fetchBlacklist();
+  };
+
+  const handleDeleteBlacklist = async (id: string) => {
+    await supabase.from('email_blacklist').delete().eq('id', id);
+    fetchBlacklist();
+  };
+
+  // Массовая рассылка уведомлений
+  const handleSendBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastTitle.trim() || !broadcastMsg.trim()) return;
+    
+    const { data: users } = await supabase.from('profiles').select('id');
+    if (users) {
+      const notifs = users.map(u => ({ user_id: u.id, title: broadcastTitle, message: broadcastMsg, is_read: false }));
+      await supabase.from('notifications').insert(notifs);
+      await logAdminAction('BROADCAST', `Wysłano powiadomienie masowe: ${broadcastTitle}`);
+      alert('Powiadomienie zostało wysłane do wszystkich użytkowników!');
+      setBroadcastTitle(''); setBroadcastMsg('');
     }
   };
 
+  const tabs = [
+    { id: 'users', label: 'Konta', icon: Users },
+    { id: 'promos', label: 'Kody', icon: Ticket },
+    { id: 'orders', label: 'Ogłoszenia', icon: ClipboardList },
+    { id: 'moderation', label: 'Auto-mod', icon: AlertTriangle },
+    { id: 'broadcasts', label: 'Wysyłka', icon: Send },
+    { id: 'logs', label: 'Logi', icon: FileText },
+  ] as const;
+
   return (
-    <div className="p-4 pb-28 max-w-xl mx-auto min-h-screen">
-      <div className="flex items-center gap-2 mb-6 mt-2">
-        <Shield className="text-violet-600" size={28} />
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Panel Administracyjny</h1>
-      </div>
-
-      {/* Статистика */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 bg-violet-50 text-violet-600 rounded-xl flex items-center justify-center">
-            <Users size={20} />
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-28">
+      <div className="max-w-2xl mx-auto px-4 pt-6">
+        
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-200">
+            <Shield className="text-white" size={24} />
           </div>
           <div>
-            <p className="text-xs text-gray-400 font-medium uppercase">Użytkownicy</p>
-            <p className="text-xl font-bold text-gray-900">{stats.usersCount}</p>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Panel Administracyjny</h1>
+            <p className="text-sm text-slate-500">Zarządzanie platformą RazDwaSzybko</p>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-            <ClipboardList size={20} />
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+              <Users size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Użytkownicy</p>
+              <p className="text-2xl font-black text-slate-900">{stats.usersCount}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-gray-400 font-medium uppercase">Ogłoszenia</p>
-            <p className="text-xl font-bold text-gray-900">{stats.ordersCount}</p>
+          <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <ClipboardList size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ogłoszenia</p>
+              <p className="text-2xl font-black text-slate-900">{stats.ordersCount}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Переключатель вкладок (Меню) */}
-      <div className="flex bg-gray-100 p-1 rounded-2xl mb-6">
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all ${
-            activeTab === 'users' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <UserCheck size={16} />
-          Zarządzanie kontami
-        </button>
-        <button
-          onClick={() => setActiveTab('promos')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all ${
-            activeTab === 'promos' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <Ticket size={16} />
-          Kody promocyjne ({promoList.length})
-        </button>
-      </div>
-
-      {/* ================= ВХОДЯЩИЕ ВКЛАДКИ ================= */}
-
-      {/* ВКЛАДКА 1: УПРАВЛЕНИЕ УЧЕТНЫМИ ЗАПИСЯМИ */}
-      {activeTab === 'users' && (
-        <div className="space-y-6">
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-            <h2 className="font-bold text-base text-gray-900 mb-3">Wyszukaj użytkownika</h2>
-            <form onSubmit={handleSearch} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Wprowadź UUID użytkownika..."
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/25"
-              />
-              <Button type="submit" disabled={loading}>
-                <Search size={16} />
-              </Button>
-            </form>
+        <div className="grid grid-cols-3 gap-3 mb-8">
+          <div className="bg-white rounded-2xl border border-slate-100 p-3.5 shadow-sm flex flex-col items-center text-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-1.5">
+              <Award size={18} />
+            </div>
+            <p className="text-[10px] font-semibold text-slate-400 uppercase">PRO</p>
+            <p className="text-xl font-black text-slate-900">{stats.proCount}</p>
           </div>
-
-          {message && (
-            <div className={`p-3.5 rounded-xl text-sm font-medium text-center ${
-              message.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
-            }`}>
-              {message.text}
+          <div className="bg-white rounded-2xl border border-slate-100 p-3.5 shadow-sm flex flex-col items-center text-center">
+            <div className="w-9 h-9 rounded-xl bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center mb-1.5">
+              <Wallet size={18} />
             </div>
-          )}
-
-          {targetUser && (
-            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col gap-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-lg text-gray-900">{targetUser?.full_name || 'Brak imienia'}</h3>
-                  <p className="text-xs text-gray-400 font-mono">ID: {targetUser?.id}</p>
-                  <p className="text-xs text-gray-600 mt-1">E-mail: <strong>{targetEmail}</strong></p>
-                </div>
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-                  targetUser?.is_banned ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
-                }`}>
-                  {targetUser?.is_banned ? 'Zablokowany' : 'Aktywny'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 py-2 border-t border-b border-gray-50 text-sm">
-                <div>Balans: <strong>{targetUser?.points_balance || 0} pkt</strong></div>
-                <div>PRO status: <strong className={targetUser?.is_pro ? 'text-violet-600' : 'text-gray-500'}>{targetUser?.is_pro ? 'Tak' : 'Nie'}</strong></div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-2.5">
-                <h4 className="font-bold text-xs text-gray-700 uppercase tracking-wider">Zarządzanie blokadą</h4>
-                {targetUser?.is_banned ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-xs text-red-600">Powód: {targetUser?.ban_reason || 'Brak powódu'}</p>
-                    <Button variant="outline" className="text-emerald-600" onClick={handleToggleBan} disabled={loading}>
-                      <Unlock size={14} className="mr-1" /> Odblokuj użytkownika
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <Input 
-                      label="Powód blokady" 
-                      placeholder="np. Oszustwo, spam..." 
-                      value={banReasonInput}
-                      onChange={(e) => setBanReasonInput(e.target.value)}
-                    />
-                    <Button variant="outline" className="text-red-600" onClick={handleToggleBan} disabled={loading}>
-                      <Lock size={14} className="mr-1" /> Zablokuj natychmiast
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-3 pt-2 border-t border-gray-100">
-                <h4 className="font-bold text-xs text-gray-700 uppercase tracking-wider">Edycja danych (wymaga kodu e-mail)</h4>
-                <Input label="Imię / Nazwa" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                <Input label="E-mail" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
-                <Input label="Dodaj / Odejmij punkty (np. 10 lub -5)" value={pointsToAdd} onChange={(e) => setPointsToAdd(e.target.value)} placeholder="0" />
-
-                {!codeSent ? (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => requestAction({ 
-                        full_name: editName, 
-                        email: editEmail, 
-                        points_balance: pointsToAdd ? (targetUser?.points_balance || 0) + parseInt(pointsToAdd) : (targetUser?.points_balance || 0) 
-                      })}
-                      disabled={loading}
-                    >
-                      Zapisz dane / punkty
-                    </Button>
-
-                    <Button 
-                      variant="outline" 
-                      onClick={() => requestAction({ is_pro: !targetUser?.is_pro })}
-                      disabled={loading}
-                    >
-                      <Star size={14} className="mr-1" /> {targetUser?.is_pro ? 'Usuń PRO' : 'Nadaj PRO'}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="bg-violet-50 p-4 rounded-xl border border-violet-100 flex flex-col gap-3 mt-2">
-                    <p className="text-xs text-violet-800 font-medium">
-                      Wprowadź 6-cyfrowy kod wysłany na e-mail użytkownika, aby potwierdzić operację:
-                    </p>
-                    <input 
-                      type="text" 
-                      placeholder="123456" 
-                      maxLength={6}
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value)}
-                      className="bg-white border border-violet-200 rounded-xl px-4 py-2 text-center text-lg font-mono tracking-widest focus:outline-none"
-                    />
-                    <Button onClick={confirmAndExecute} disabled={loading}>
-                      Potwierdź i wykonaj
-                    </Button>
-                  </div>
-                )}
-              </div>
+            <p className="text-[10px] font-semibold text-slate-400 uppercase">Punkty</p>
+            <p className="text-xl font-black text-slate-900">{stats.totalPoints}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-100 p-3.5 shadow-sm flex flex-col items-center text-center">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-1.5">
+              <UserPlus size={18} />
             </div>
-          )}
+            <p className="text-[10px] font-semibold text-slate-400 uppercase">Polecenia</p>
+            <p className="text-xl font-black text-slate-900">{stats.referredCount}</p>
+          </div>
         </div>
-      )}
 
-      {/* ВКЛАДКА 2: ПРОМОКОДЫ */}
-      {activeTab === 'promos' && (
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-base text-gray-900">Kody promocyjne PRO</h2>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowPromoForm(!showPromoForm)}
-              className="text-xs font-semibold"
-            >
-              {showPromoForm ? 'Zamknij' : '+ Stwórz kod'}
-            </Button>
+        {/* Tabs */}
+        <div className="sticky top-0 z-20 -mx-4 px-4 py-2 bg-gradient-to-b from-slate-50/95 to-slate-50/80 backdrop-blur-md mb-6">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all
+                    ${isActive 
+                      ? 'bg-violet-600 text-white shadow-md shadow-violet-200' 
+                      : 'bg-white text-slate-500 border border-slate-100 hover:border-violet-200 hover:text-violet-700'
+                    }
+                  `}
+                >
+                  <Icon size={14} />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          {promoMessage && (
-            <div className={`p-3 mb-3 rounded-xl text-xs font-medium text-center ${
-              promoMessage.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
-            }`}>
-              {promoMessage.text}
-            </div>
-          )}
-
-          {showPromoForm && (
-            <form onSubmit={handleCreatePromoCode} className="flex flex-col gap-3 mb-5 p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <h3 className="text-xs font-bold text-gray-700 uppercase">Nowy kod promocyjny</h3>
-              <Input 
-                label="Nazwa kodu (np. PRO2026)" 
-                value={promoCodeInput}
-                onChange={(e) => setPromoCodeInput(e.target.value)}
-                required
-              />
-              <Input 
-                label="Opis (co daje kod)" 
-                value={promoDescription}
-                onChange={(e) => setPromoDescription(e.target.value)}
-                placeholder="np. Dostęp do konta PRO na 2 miesiące"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <Input 
-                  label="Liczba miesięcy PRO" 
-                  type="number"
-                  value={promoMonths}
-                  onChange={(e) => setPromoMonths(e.target.value)}
-                  required
+        {/* ===================== USERS TAB ===================== */}
+        {activeTab === 'users' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+              <h2 className="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
+                <Search size={16} className="text-violet-600" />
+                Wyszukaj użytkownika
+              </h2>
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Wklej UUID użytkownika..."
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition-all"
                 />
-                <Input 
-                  label="Ważny do (opcjonalnie)" 
-                  type="date"
-                  value={promoExpiresAt}
-                  onChange={(e) => setPromoExpiresAt(e.target.value)}
-                />
-              </div>
-              <Button type="submit" disabled={promoLoading} className="mt-1">
-                <Plus size={16} className="mr-1.5" /> {promoLoading ? 'Tworzenie...' : 'Zapisz kod'}
-              </Button>
-            </form>
-          )}
+                <Button type="submit" disabled={loading} className="px-4">
+                  <Search size={16} />
+                </Button>
+              </form>
+            </div>
 
-          <div className="space-y-2.5">
-            {promoList.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-6">Brak utworzonych kodów promocyjnych.</p>
-            ) : (
-              promoList.map((promo) => (
-                <div key={promo.id} className="flex items-center justify-between p-3 bg-gray-50/70 border border-gray-100 rounded-xl">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-xs bg-violet-100 text-violet-800 px-2 py-0.5 rounded">
-                        {promo.code}
-                      </span>
-                      <span className="text-xs font-semibold text-gray-800">
-                        {promo.months_valid} {promo.months_valid === 1 ? 'miesiąc' : 'miesiące'} PRO
-                      </span>
+            {message && (
+              <div className={`p-3.5 rounded-xl text-sm font-medium text-center border ${
+                message.type === 'error' 
+                  ? 'bg-red-50 text-red-700 border-red-100' 
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+              }`}>
+                {message.text}
+              </div>
+            )}
+
+            {targetUser && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                {/* User header */}
+                <div className="bg-gradient-to-r from-violet-50 to-indigo-50 px-5 py-4 border-b border-slate-100">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-base text-slate-900">{targetUser?.full_name || 'Bez nazwy'}</h3>
+                      <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate max-w-[220px]">{targetUser?.id}</p>
+                      {targetEmail && <p className="text-xs text-slate-500 mt-1">{targetEmail}</p>}
                     </div>
-                    {promo.description && (
-                      <p className="text-xs text-gray-500 mt-1">{promo.description}</p>
-                    )}
-                    {promo.expires_at && (
-                      <p className="text-[10px] text-gray-400 mt-0.5">Ważny do: {new Date(promo.expires_at).toLocaleDateString('pl-PL')}</p>
-                    )}
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
+                      targetUser?.is_banned 
+                        ? 'bg-red-100 text-red-700' 
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {targetUser?.is_banned ? 'Zablokowany' : 'Aktywny'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-50 rounded-xl p-3 text-center">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase">Balans</p>
+                      <p className="text-lg font-black text-slate-900">{targetUser?.points_balance ?? 0} <span className="text-xs font-medium text-slate-500">pkt</span></p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3 text-center">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase">PRO</p>
+                      <p className="text-lg font-black text-slate-900">{targetUser?.is_pro ? 'Tak' : 'Nie'}</p>
+                    </div>
                   </div>
 
-                  <button 
-                    onClick={() => handleDeletePromo(promo.id)}
-                    className="text-gray-400 hover:text-red-600 p-2 transition-colors"
-                    title="Usuń kod"
+                  <Button 
+                    variant="outline" 
+                    fullWidth
+                    className={targetUser?.is_banned ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-red-600 border-red-200 hover:bg-red-50'}
+                    onClick={handleToggleBan}
+                    disabled={loading}
                   >
-                    <Trash2 size={16} />
-                  </button>
+                    {targetUser?.is_banned ? (
+                      <><Unlock size={16} className="mr-1.5" /> Odblokuj konto</>
+                    ) : (
+                      <><Ban size={16} className="mr-1.5" /> Zablokuj konto</>
+                    )}
+                  </Button>
+
+                  <div className="pt-4 border-t border-slate-100 space-y-3">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Edycja danych</p>
+                    <Input label="Imię / Nazwa" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                    <Input 
+                      label="Punkty do dodania / odjęcia" 
+                      value={pointsToAdd} 
+                      onChange={(e) => setPointsToAdd(e.target.value)} 
+                      placeholder="np. 50 lub -10" 
+                    />
+
+                    {!codeSent ? (
+                      <Button 
+                        variant="outline" 
+                        fullWidth
+                        onClick={() => requestAction({ 
+                          full_name: editName, 
+                          points_balance: (targetUser?.points_balance || 0) + parseInt(pointsToAdd || '0') 
+                        })}
+                        disabled={loading}
+                      >
+                        Zapisz zmiany (wymaga kodu e-mail)
+                      </Button>
+                    ) : (
+                      <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 space-y-3">
+                        <p className="text-xs text-violet-700 font-medium text-center">
+                          Wpisz 6-cyfrowy kod wysłany na e-mail
+                        </p>
+                        <input
+                          type="text"
+                          placeholder="• • • • • •"
+                          maxLength={6}
+                          value={verificationCode}
+                          onChange={(e) => setVerificationCode(e.target.value)}
+                          className="w-full bg-white border border-violet-200 rounded-xl p-3 text-center text-lg font-mono tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+                        />
+                        <Button fullWidth onClick={confirmAndExecute} disabled={loading || verificationCode.length < 6}>
+                          Potwierdź zmiany
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ))
+              </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* ===================== PROMOS TAB ===================== */}
+        {activeTab === 'promos' && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
+              <h2 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <Ticket size={16} className="text-violet-600" />
+                Kody promocyjne
+              </h2>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowPromoForm(!showPromoForm)}
+                className="text-xs px-3 py-1.5 h-auto"
+              >
+                {showPromoForm ? <X size={14} /> : <Plus size={14} />}
+                <span className="ml-1">{showPromoForm ? 'Zamknij' : 'Nowy kod'}</span>
+              </Button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {showPromoForm && (
+                <form onSubmit={handleCreatePromoCode} className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-100">
+                  <Input label="Kod (np. PROMO2025)" value={promoCodeInput} onChange={(e) => setPromoCodeInput(e.target.value)} required />
+                  <Input label="Opis (opcjonalnie)" value={promoDescription} onChange={(e) => setPromoDescription(e.target.value)} />
+                  <Input label="Miesiące PRO" type="number" value={promoMonths} onChange={(e) => setPromoMonths(e.target.value)} required />
+                  <Button type="submit" fullWidth disabled={promoLoading}>
+                    {promoLoading ? 'Tworzenie...' : 'Utwórz kod'}
+                  </Button>
+                </form>
+              )}
+
+              {promoMessage && (
+                <div className={`p-3 rounded-xl text-xs font-medium text-center ${
+                  promoMessage.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'
+                }`}>
+                  {promoMessage.text}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {promoList.length === 0 ? (
+                  <p className="text-center text-sm text-slate-400 py-8">Brak kodów promocyjnych</p>
+                ) : (
+                  promoList.map((p) => (
+                    <div key={p.id} className="flex justify-between items-center p-3.5 bg-slate-50 rounded-xl border border-slate-100 hover:border-violet-100 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-xs bg-violet-100 text-violet-800 px-2.5 py-1 rounded-lg tracking-wide">
+                          {p.code}
+                        </span>
+                        <span className="text-xs text-slate-500">{p.months_valid} mies. PRO</span>
+                      </div>
+                      <button 
+                        onClick={() => handleDeletePromo(p.id)} 
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== ORDERS TAB ===================== */}
+        {activeTab === 'orders' && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h2 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <ClipboardList size={16} className="text-violet-600" />
+                Ostatnie ogłoszenia
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Moderacja • ostatnie 50</p>
+            </div>
+
+            <div className="divide-y divide-slate-50">
+              {ordersList.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-12">Brak ogłoszeń</p>
+              ) : (
+                ordersList.map((o) => (
+                  <div key={o.id} className="p-4 flex justify-between items-start gap-3 hover:bg-slate-50/50 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-sm text-slate-900 truncate">{o.title}</p>
+                      <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">{o.description}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        {o.budget && (
+                          <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md">
+                            {o.budget} PLN
+                          </span>
+                        )}
+                        {o.category && (
+                          <span className="text-[10px] font-medium bg-violet-50 text-violet-700 px-2 py-0.5 rounded-md">
+                            {o.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleDeleteOrder(o.id)} 
+                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0"
+                      title="Usuń ogłoszenie"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===================== MODERATION TAB ===================== */}
+        {activeTab === 'moderation' && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h2 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <AlertTriangle size={16} className="text-amber-500" />
+                Słowa kluczowe (Stop-words)
+              </h2>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Ogłoszenia zawierające te słowa w tytule lub opisie zostaną automatycznie odrzucone.
+              </p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <form onSubmit={handleAddStopword} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="np. scam, telegram, link..."
+                  value={newStopword}
+                  onChange={(e) => setNewStopword(e.target.value)}
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                />
+                <Button type="submit" className="px-4">
+                  <Plus size={16} />
+                </Button>
+              </form>
+
+              <div className="flex flex-wrap gap-2">
+                {stopwordsList.length === 0 ? (
+                  <p className="text-sm text-slate-400 py-4 w-full text-center">Brak zdefiniowanych słów</p>
+                ) : (
+                  stopwordsList.map((s) => (
+                    <span 
+                      key={s.id} 
+                      className="inline-flex items-center gap-1.5 bg-violet-50 text-violet-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-violet-100"
+                    >
+                      {s.word}
+                      <button 
+                        onClick={() => handleDeleteStopword(s.id)} 
+                        className="text-violet-400 hover:text-red-500 font-bold leading-none ml-0.5"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== BROADCASTS TAB ===================== */}
+        {activeTab === 'broadcasts' && (
+          <div className="space-y-5">
+            <form onSubmit={handleSendBroadcast} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h2 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <Send size={15} className="text-violet-600" />
+                  Masowe powiadomienie
+                </h2>
+              </div>
+              <div className="p-5 space-y-3">
+                <Input label="Tytuł" value={broadcastTitle} onChange={(e) => setBroadcastTitle(e.target.value)} required />
+                <Input label="Treść wiadomości" value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} required />
+                <Button type="submit" fullWidth>
+                  <Send size={15} className="mr-1.5" />
+                  Wyślij do wszystkich
+                </Button>
+              </div>
+            </form>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h2 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <ShieldAlert size={15} className="text-red-500" />
+                  Czarna lista domen
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Blokada rejestracji z określonych domen e-mail</p>
+              </div>
+              <div className="p-5 space-y-3">
+                <form onSubmit={handleAddBlacklist} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="np. tempmail.com"
+                    value={blacklistInput}
+                    onChange={(e) => setBlacklistInput(e.target.value)}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                  />
+                  <Button type="submit" className="px-4">Zablokuj</Button>
+                </form>
+
+                <div className="space-y-1.5 pt-1">
+                  {blacklist.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-4">Lista pusta</p>
+                  ) : (
+                    blacklist.map((b) => (
+                      <div key={b.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-xs font-mono text-slate-700">{b.domain}</span>
+                        <button 
+                          onClick={() => handleDeleteBlacklist(b.id)} 
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== LOGS TAB ===================== */}
+        {activeTab === 'logs' && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h2 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <FileText size={15} className="text-violet-600" />
+                Dziennik operacji
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Ostatnie 30 akcji</p>
+            </div>
+
+            <div className="max-h-[28rem] overflow-y-auto divide-y divide-slate-50">
+              {auditLogs.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-12">Brak logów</p>
+              ) : (
+                auditLogs.map((l) => (
+                  <div key={l.id} className="p-4 hover:bg-slate-50/50 transition-colors">
+                    <div className="flex justify-between items-start gap-3 mb-1">
+                      <span className="text-xs font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md">
+                        {l.action}
+                      </span>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                        {new Date(l.created_at).toLocaleString('pl-PL')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">{l.details}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
