@@ -67,10 +67,10 @@ export default function CreateOrderPage() {
     }
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim() || !location.trim() || !budget.trim()) {
-      setError('Wypełnij wszystkie wymagane pola, w tym budżet.');
+      setError('Wypełnij wszystkie wymagane pola.');
       return;
     }
 
@@ -79,32 +79,38 @@ export default function CreateOrderPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
-      }
+      if (!session) { router.push('/login'); return; }
 
-      // --- АВТОМАТИЧЕСКАЯ МОДЕРАЦИЯ (ПРОВЕРКА СТОП-СЛОВ) ---
-      const { data: stopWords } = await supabase.from('auto_mod_stopwords').select('word');
+      // 1. Получаем ВСЕ стоп-слова
+      const { data: stopWordsData } = await supabase.from('auto_mod_stopwords').select('word');
+      const stopWords = stopWordsData?.map(w => w.word.toLowerCase()) || [];
+
+      // 2. Объединяем текст
       const fullText = `${title} ${description}`.toLowerCase();
 
-      let isRejected = false;
-      if (stopWords) {
-        for (const item of stopWords) {
-          if (item.word && fullText.includes(item.word.toLowerCase())) {
-            isRejected = true;
-            break;
-          }
-        }
-      }
+      // 3. Проверка (ищем, содержит ли текст хоть одно слово из списка)
+      const foundForbiddenWord = stopWords.find(word => fullText.includes(word));
 
-      if (isRejected) {
-        setError('Twoje ogłoszenie zostało odrzucone przez system automatycznej moderacji (naruszenie regulaminu / niedozwolone słowa).');
+      if (foundForbiddenWord) {
+        // Если нашли запрещенное слово - записываем как rejected
+        await supabase.from('orders').insert([
+          {
+            user_id: session.user.id,
+            title,
+            location,
+            category,
+            deadline,
+            description,
+            budget,
+            status: 'rejected' // Устанавливаем статус отклонено
+          }
+        ]);
+        setError('Twoje ogłoszenie zawiera niedozwolone słowa i zostało odrzucone przez system moderacji.');
         setIsSubmitting(false);
         return;
       }
 
-      // Если проверка прошла успешно, публикуем со статусом 'active'
+      // Если всё чисто - публикуем
       const { error: insertError } = await supabase.from('orders').insert([
         {
           user_id: session.user.id,
@@ -114,13 +120,13 @@ export default function CreateOrderPage() {
           deadline,
           description,
           budget,
-          status: 'active'
+          status: 'active' // Успешная публикация
         }
       ]);
 
       if (insertError) throw insertError;
-
       router.push('/orders');
+
     } catch (err: any) {
       console.error(err);
       setError('Wystąpił błąd podczas tworzenia zlecenia.');
