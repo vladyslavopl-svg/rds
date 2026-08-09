@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-07-29.dahlia',
+  apiVersion: '2023-10-16',
 });
 
 const supabase = createClient(
@@ -32,9 +32,13 @@ export async function POST(req: Request) {
       );
     }
 
+    // Автоматически определяем откуда пришел запрос (локалка или production-сайт)
+    const origin = req.headers.get('origin') || 'http://localhost:3000';
+
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/profile`,
+      // Возвращаем пользователя туда, откуда он инициировал запрос + на страницу /profile
+      return_url: `${origin}/profile`,
     });
 
     return NextResponse.json({ url: session.url });
