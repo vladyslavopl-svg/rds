@@ -40,7 +40,7 @@ export default function LoginPage() {
             // Выбрасываем из системы
             await supabase.auth.signOut();
             const reason = profile.ban_reason || 'Brak podanego powodu.';
-            throw new Error(`Konto zostało zablokowane. Powód: ${reason}`);
+            throw new Error(`Konto zostało zablokowane. Powód: ${reason}. W celu wyjaśnienia sytuacji prosimy o kontakt ze wsparciem: support@razdwaszybko.pl`);
           }
         }
 
