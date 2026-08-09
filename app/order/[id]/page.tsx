@@ -6,6 +6,23 @@ import { supabase } from '@/lib/supabase';
 import { Tag, Clock, ChevronLeft, User, MessageSquare, Phone, MapPin, Calendar, Star, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
+// Функция расчета стоимости отклика в зависимости от бюджета заказа
+const calculateRequiredPoints = (budgetString: string) => {
+  if (!budgetString) return 1;
+
+  const numbers = budgetString.replace(/\D/g, '');
+  const budget = numbers ? parseInt(numbers, 10) : 0;
+
+  if (budget === 0) return 1;
+  if (budget <= 100) return 1;
+  if (budget <= 200) return 3;
+  if (budget <= 500) return 5;
+  if (budget <= 1000) return 7;
+  if (budget <= 2000) return 10;
+  if (budget <= 5000) return 12;
+  return 15;
+};
+
 export default function OrderDetailsPage() {
   const params = useParams();
   const router = useRouter(); 
@@ -17,6 +34,7 @@ export default function OrderDetailsPage() {
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
   const [hasApplied, setHasApplied] = useState(false);
   const [clientProfile, setClientProfile] = useState<any>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
 
   const [isOwner, setIsOwner] = useState(false);
   const [offers, setOffers] = useState<any[]>([]);
@@ -35,6 +53,17 @@ export default function OrderDetailsPage() {
 
       const { data: { session } } = await supabase.auth.getSession();
       const currentUser = session?.user;
+
+      if (currentUser) {
+        const { data: userProf } = await supabase
+          .from('profiles')
+          .select('is_pro, points_balance')
+          .eq('id', currentUser.id)
+          .single();
+        if (userProf) {
+          setCurrentUserProfile(userProf);
+        }
+      }
 
       const { data: orderData } = await supabase
         .from('orders')
@@ -141,27 +170,47 @@ export default function OrderDetailsPage() {
         return;
       }
 
+      // Вычисляем стоимость отклика на основе бюджета
+      const pointsNeeded = calculateRequiredPoints(order.budget);
+
+      // Проверяем баланс и PRO статус исполнителя
       const { data: profile, error: profileError } = await supabase
-        .from('profiles').select('points_balance').eq('id', session.user.id).single();
+        .from('profiles')
+        .select('points_balance, is_pro')
+        .eq('id', session.user.id)
+        .single();
 
       if (profileError) throw profileError;
 
-      if (profile.points_balance < 1) {
-        setMessage({ text: 'Brak wystarczającej liczby punktów. Doładuj konto!', type: 'error' });
-        setIsSubmitting(false);
-        return;
+      const isPro = profile.is_pro === true;
+
+      // Если не PRO, проверяем хватает ли поинтов и списываем нужную сумму
+      if (!isPro) {
+        if (profile.points_balance < pointsNeeded) {
+          setMessage({ 
+            text: `Brak wystarczającej liczby punktów. Ten odcinek wymaga ${pointsNeeded} pkt. Doładuj konto!`, 
+            type: 'error' 
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ points_balance: profile.points_balance - pointsNeeded })
+          .eq('id', session.user.id);
+
+        if (updateError) throw updateError;
       }
 
-      const { error: updateError } = await supabase
-        .from('profiles').update({ points_balance: profile.points_balance - 1 }).eq('id', session.user.id);
-
-      if (updateError) throw updateError;
-
+      // Создаем оффер
       const { error: offerError } = await supabase
-        .from('offers').insert([{ order_id: order.id, provider_id: session.user.id }]);
+        .from('offers')
+        .insert([{ order_id: order.id, provider_id: session.user.id }]);
 
       if (offerError) throw offerError;
 
+      // Создаем или открываем чат
       const { data: existingChat } = await supabase
         .from('chats')
         .select('id')
@@ -179,7 +228,7 @@ export default function OrderDetailsPage() {
         ]);
       }
 
-      // === НОВОЕ: Фоновая отправка письма клиенту о новом отклике ===
+      // Отправляем email-уведомление клиенту
       fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,7 +240,12 @@ export default function OrderDetailsPage() {
       }).catch(err => console.error('Błąd wysyłania emaila:', err));
 
       setHasApplied(true);
-      setMessage({ text: 'Oferta została złożona ✓', type: 'success' });
+      setMessage({ 
+        text: isPro 
+          ? 'Oferta została złożona bezpłatnie (Konto PRO) ✓' 
+          : `Oferta została złożona (-${pointsNeeded} pkt) ✓`, 
+        type: 'success' 
+      });
     } catch (error: any) {
       console.error(error);
       setMessage({ text: 'Wystąpił błąd podczas składania oferty.', type: 'error' });
@@ -301,6 +355,8 @@ export default function OrderDetailsPage() {
   const displayBudget = order.budget 
     ? (order.budget.toLowerCase().includes('zł') || order.budget.toLowerCase().includes('pln') ? order.budget : `${order.budget} zł`)
     : 'Do negocjacji';
+
+  const currentOrderPoints = calculateRequiredPoints(order?.budget);
 
   return (
     <div className="bg-gray-50 min-h-screen pb-28">
@@ -560,7 +616,6 @@ export default function OrderDetailsPage() {
                               return;
                             }
 
-                            // Уведомление внутри платформы
                             await supabase.from('notifications').insert([
                               {
                                 user_id: providerId,
@@ -570,7 +625,6 @@ export default function OrderDetailsPage() {
                               }
                             ]);
 
-                            // === НОВОЕ: Фоновая отправка письма мастеру о выборе ===
                             fetch('/api/send-email', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
@@ -838,10 +892,18 @@ export default function OrderDetailsPage() {
                   onClick={handleOffer}
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Przetwarzanie...' : 'Odpowiedz (1 punkt)'}
+                  {isSubmitting 
+                    ? 'Przetwarzanie...' 
+                    : currentUserProfile?.is_pro 
+                      ? 'Odpowiedz (PRO — Bezpłatnie)' 
+                      : `Odpowiedz (${currentOrderPoints} ${currentOrderPoints === 1 ? 'punkt' : currentOrderPoints < 5 ? 'punkty' : 'punktów'})`
+                  }
                 </Button>
                 <p className="text-xs text-center text-gray-400">
-                  Odpowiedź pobiera 1 punkt i odblokowuje kontakt oraz czat.
+                  {currentUserProfile?.is_pro
+                    ? 'Jako użytkownik PRO odpowiadasz bez pobierania punktów!'
+                    : `Odpowiedź pobiera ${currentOrderPoints} pkt i odblokowuje kontakt oraz czat.`
+                  }
                 </p>
               </div>
             )}

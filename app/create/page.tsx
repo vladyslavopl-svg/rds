@@ -69,8 +69,8 @@ export default function CreateOrderPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim() || !location.trim()) {
-      setError('Wypełnij wszystkie wymagane pola.');
+    if (!title.trim() || !description.trim() || !location.trim() || !budget.trim()) {
+      setError('Wypełnij wszystkie wymagane pola, w tym budżet.');
       return;
     }
 
@@ -92,7 +92,7 @@ export default function CreateOrderPage() {
           category,
           deadline,
           description,
-          budget: budget ? budget : null,
+          budget, // Теперь обязательное поле
         }
       ]);
 
@@ -241,17 +241,18 @@ export default function CreateOrderPage() {
           />
         </div>
 
-        {/* Budget */}
+        {/* Budget - Now Required */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
             <DollarSign size={14} className="text-violet-500" />
-            Budżet (opcjonalnie)
+            Budżet *
           </label>
           <input
             type="text"
             placeholder="np. 300 zł lub Do negocjacji"
             value={budget}
             onChange={(e) => setBudget(e.target.value)}
+            required
             className="
               w-full bg-white border border-gray-200
               rounded-xl px-4 py-3 text-sm text-gray-900
