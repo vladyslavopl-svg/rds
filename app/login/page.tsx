@@ -2,13 +2,13 @@
 
 export const dynamic = 'force-dynamic';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { supabase } from '@/lib/supabase';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -20,7 +20,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
-  // Получаем реферальный код из URL, если он есть (например: /login?ref=XYZ123)
   const refCode = searchParams.get('ref');
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -30,12 +29,10 @@ export default function LoginPage() {
 
     try {
       if (isLogin) {
-        // --- ВХОД ---
         const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         
         if (authData.user) {
-          // Проверяем, заблокирован ли пользователь
           const { data: profile } = await supabase
             .from('profiles')
             .select('is_banned, ban_reason')
@@ -43,7 +40,6 @@ export default function LoginPage() {
             .maybeSingle();
 
           if (profile?.is_banned) {
-            // Выбрасываем из системы
             await supabase.auth.signOut();
             const reason = profile.ban_reason || 'Brak podanego powodu.';
             throw new Error(`Konto zostało zablokowane. Powód: ${reason}. W celu wyjaśnienia sytuacji prosimy o kontakt ze wsparciem: support@razdwaszybko.pl`);
@@ -54,7 +50,6 @@ export default function LoginPage() {
         setTimeout(() => router.push('/'), 1000);
         
       } else {
-        // --- РЕГИСТРАЦИЯ ---
         if (!fullName.trim() || !contactInfo.trim()) {
           throw new Error('Wypełnij imię, nazwisko oraz numer telefonu.');
         }
@@ -65,7 +60,6 @@ export default function LoginPage() {
         if (data.user) {
           let referrerId = null;
 
-          // Если регистрация прошла по реферальной ссылке, ищем пригласившего
           if (refCode) {
             const { data: referrerProfile } = await supabase
               .from('profiles')
@@ -76,7 +70,6 @@ export default function LoginPage() {
             if (referrerProfile) {
               referrerId = referrerProfile.id;
 
-              // Начисляем пригласившему +4 пункта
               await supabase
                 .from('profiles')
                 .update({ points_balance: (referrerProfile.points_balance || 0) + 4 })
@@ -84,10 +77,8 @@ export default function LoginPage() {
             }
           }
 
-          // Генерируем персональный реферальный код для нового пользователя
           const myReferralCode = data.user.id.replace(/-/g, '').substring(0, 8);
 
-          // Создаем профиль в таблице profiles
           const { error: profileError } = await supabase.from('profiles').upsert([
             { 
               id: data.user.id, 
@@ -194,5 +185,17 @@ export default function LoginPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 flex justify-center items-center min-h-[60vh]">
+        <div className="w-8 h-8 border-4 border-violet-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
