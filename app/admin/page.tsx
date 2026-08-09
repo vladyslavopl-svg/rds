@@ -60,24 +60,27 @@ export default function AdminPage() {
     setMessage(null);
     setCodeSent(false);
 
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', searchId.trim())
-      .single();
-
-    if (error || !profile) {
-      setMessage({ text: 'Nie znaleziono użytkownika o takim ID.', type: 'error' });
-      setTargetUser(null);
-    } else {
-      setTargetUser(profile);
-      setEditName(profile.full_name || '');
+    try {
+      // Безопасный запрос через серверный API-роут
+      const res = await fetch('/api/admin/get-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: searchId.trim() })
+      });
       
-      const { data: userData } = await supabase.auth.admin.getUserById(profile.id).catch(() => ({ data: null }));
-      setTargetEmail(userData?.user?.email || '');
-      setEditEmail(userData?.user?.email || '');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setTargetUser(data.profile);
+      setEditName(data.profile.full_name || '');
+      setTargetEmail(data.email || '');
+      setEditEmail(data.email || '');
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Nie znaleziono użytkownika o takim ID.', type: 'error' });
+      setTargetUser(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // Шаг 1: Запрос кода подтверждения
