@@ -61,6 +61,10 @@ export default function ProfilePage() {
   const [copiedRef, setCopiedRef] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
+  // Состояния для верификации из профиля (если не подтвержден)
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationCodeInput, setVerificationCodeInput] = useState('');
+
   useEffect(() => {
     let isMounted = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -244,11 +248,60 @@ export default function ProfilePage() {
 
       setIsEditing(false);
       setMessage({
-        text: 'Profil został zaktualizowany! Jeśli zmieniłeś e-mail, sprawdź skrzynkę w celu potwierdzenia. ✓',
+        text: 'Profil został zaktualizowany! ✓',
         type: 'success',
       });
     } catch (error: any) {
       setMessage({ text: error.message || 'Wystąpił błąd podczas zapisywania.', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Отправка кода верификации из профиля
+  const handleSendVerificationCode = async () => {
+    setIsLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/send-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Błąd wysyłania kodu.');
+
+      setIsVerifying(true);
+      setMessage({ text: 'Kod weryfikacyjny został wysłany na e-mail!', type: 'success' });
+    } catch (err: any) {
+      setMessage({ text: err.message, type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Подтверждение кода верификации из профиля
+  const handleConfirmVerificationCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: verificationCodeInput })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Nieprawidłowy kod.');
+
+      // Обновляем статус в базе
+      await supabase.from('profiles').update({ is_verified: true }).eq('id', session.user.id);
+
+      setProfile({ ...profile, is_verified: true });
+      setIsVerifying(false);
+      setMessage({ text: 'E-mail został pomyślnie zweryfikowany! 🎉', type: 'success' });
+    } catch (err: any) {
+      setMessage({ text: err.message, type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -352,7 +405,6 @@ export default function ProfilePage() {
 
   const isProvider = profile?.role === 'provider';
 
-  // Hide "Opinie" tab for non-providers
   const visibleTabs = TABS.filter((tab) => {
     if (tab.id === 'reviews' && !isProvider) return false;
     return true;
@@ -379,14 +431,14 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      {/* Balance Card — always visible */}
+      {/* Balance Card */}
       <div
         className="
-        relative overflow-hidden
-        bg-gradient-to-br from-violet-600 to-fuchsia-600
-        rounded-2xl p-5 mb-4
-        shadow-[0_4px_20px_rgba(139,92,246,0.25)]
-      "
+          relative overflow-hidden
+          bg-gradient-to-br from-violet-600 to-fuchsia-600
+          rounded-2xl p-5 mb-4
+          shadow-[0_4px_20px_rgba(139,92,246,0.25)]
+        "
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -446,9 +498,9 @@ export default function ProfilePage() {
         {/* User ID + Copy */}
         <div
           className={`
-          flex items-center justify-between
-          ${isProvider && profile?.is_pro ? 'mt-3' : 'mt-4 pt-3.5 border-t border-white/20'}
-        `}
+            flex items-center justify-between
+            ${isProvider && profile?.is_pro ? 'mt-3' : 'mt-4 pt-3.5 border-t border-white/20'}
+          `}
         >
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-[11px] text-white/60 font-medium shrink-0">ID:</span>
@@ -506,13 +558,13 @@ export default function ProfilePage() {
       {message && (
         <div
           className={`
-          p-3.5 mb-4 rounded-xl text-sm font-medium text-center
-          ${
-            message.type === 'error'
-              ? 'bg-red-50 text-red-600 border border-red-100'
-              : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-          }
-        `}
+            p-3.5 mb-4 rounded-xl text-sm font-medium text-center
+            ${
+              message.type === 'error'
+                ? 'bg-red-50 text-red-600 border border-red-100'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+            }
+          `}
         >
           {message.text}
         </div>
@@ -555,10 +607,10 @@ export default function ProfilePage() {
                 {badge !== null && (
                   <span
                     className={`
-                    ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center
-                    rounded-full text-[10px] font-bold
-                    ${isActive ? 'bg-white/25 text-white' : 'bg-violet-100 text-violet-700'}
-                  `}
+                      ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center
+                      rounded-full text-[10px] font-bold
+                      ${isActive ? 'bg-white/25 text-white' : 'bg-violet-100 text-violet-700'}
+                    `}
                   >
                     {badge}
                   </span>
@@ -621,9 +673,49 @@ export default function ProfilePage() {
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
                     Adres e-mail
                   </p>
-                  <p className="text-base font-semibold text-gray-900">
-                    {email || 'Nie podano'}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-base font-semibold text-gray-900">
+                      {email || 'Nie podano'}
+                    </p>
+                    {profile?.is_verified ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-100">
+                        <CheckCircle size={12} /> Zweryfikowany
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-100">
+                          Niezweryfikowany
+                        </span>
+                        {!isVerifying ? (
+                          <button
+                            onClick={handleSendVerificationCode}
+                            disabled={isLoading}
+                            className="text-[11px] font-bold text-violet-600 hover:underline"
+                          >
+                            Zweryfikuj teraz
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Блок ввода кода подтверждения прямо в профиле */}
+                  {isVerifying && !profile?.is_verified && (
+                    <form onSubmit={handleConfirmVerificationCode} className="mt-3 bg-gray-50 p-3 rounded-xl border border-gray-200 flex flex-gap gap-2">
+                      <input
+                        type="text"
+                        placeholder="Kod 6 cyfr"
+                        maxLength={6}
+                        value={verificationCodeInput}
+                        onChange={(e) => setVerificationCodeInput(e.target.value)}
+                        className="bg-white border rounded-xl px-3 py-1.5 text-sm font-mono text-center w-32"
+                        required
+                      />
+                      <Button type="submit" disabled={isLoading}>
+                        Potwierdź
+                      </Button>
+                    </form>
+                  )}
                 </div>
               </div>
             </div>

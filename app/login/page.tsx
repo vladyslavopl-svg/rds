@@ -19,6 +19,11 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState(''); 
   const [contactInfo, setContactInfo] = useState(''); 
+  
+  // Состояния для двухшаговой верификации
+  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [verificationCode, setVerificationCode] = useState('');
+
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
@@ -63,12 +68,12 @@ function LoginForm() {
         setTimeout(() => router.push('/'), 1000);
         
       } else {
-        // --- РЕГИСТРАЦИЯ ---
+        // --- РЕГИСТРАЦИЯ: ШАГ 1 (Запрос кода) ---
         if (!fullName.trim() || !contactInfo.trim()) {
           throw new Error('Wypełnij imię, nazwisko oraz numer telefonu.');
         }
 
-        // Проверка черного списка доменов почты (Антиспам)
+        // Проверка черного списка доменов почты
         const emailDomain = email.split('@')[1]?.toLowerCase();
         if (emailDomain) {
           const { data: blacklisted } = await supabase
@@ -82,49 +87,97 @@ function LoginForm() {
           }
         }
 
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        
-        if (data.user) {
-          let referrerId = null;
+        // Отправка кода через наш API
+        const res = await fetch('/api/send-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
 
-          if (refCode) {
-            const { data: referrerProfile } = await supabase
-              .from('profiles')
-              .select('id, points_balance')
-              .eq('referral_code', refCode)
-              .maybeSingle();
+        const resData = await res.json();
+        if (!res.ok) throw new Error(resData.error || 'Nie udało się wysłać kodu weryfikacyjnego.');
 
-            if (referrerProfile) {
-              referrerId = referrerProfile.id;
-              const currentBalance = referrerProfile.points_balance || 0;
-
-              await supabase
-                .from('profiles')
-                .update({ points_balance: currentBalance + 4 })
-                .eq('id', referrerId);
-            }
-          }
-
-          const myReferralCode = data.user.id.replace(/-/g, '').substring(0, 8);
-
-          const { error: profileError } = await supabase.from('profiles').upsert([
-            { 
-              id: data.user.id, 
-              full_name: fullName,
-              contact_info: contactInfo,
-              role: 'provider', 
-              points_balance: 10,
-              referral_code: myReferralCode,
-              invited_by: referrerId
-            }
-          ]);
-          if (profileError) throw profileError;
-        }
-        
-        setMessage({ text: 'Konto zostało pomyślnie utworzone! 🎉', type: 'success' });
-        setTimeout(() => router.push('/'), 1000);
+        setStep('verify');
+        setMessage({ text: 'Kod weryfikacyjny został wysłany na Twój e-mail! 📨', type: 'success' });
       }
+    } catch (error: any) {
+      setMessage({ text: error.message, type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- РЕГИСТРАЦИЯ: ШАГ 2 (Подтверждение кода и создание аккаунта) ---
+ const handleVerifyAndRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationCode.trim()) {
+      setMessage({ text: 'Wprowadź kod weryfikacyjny.', type: 'error' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    try {
+      // 1. Проверяем код через наш безопасный API-роут
+      const res = await fetch('/api/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, code: verificationCode })
+      });
+
+      const resData = await res.json();
+      if (!res.ok) {
+        throw new Error(resData.error || 'Nieprawidłowy kod weryfikacyjny.');
+      }
+
+      // 2. Создаем аккаунт в Supabase Auth
+      const { data, error } = await supabase.auth.signUp({ email: cleanEmail, password });
+      if (error) throw error;
+      
+      if (data.user) {
+        let referrerId = null;
+
+        if (refCode) {
+          const { data: referrerProfile } = await supabase
+            .from('profiles')
+            .select('id, points_balance')
+            .eq('referral_code', refCode)
+            .maybeSingle();
+
+          if (referrerProfile) {
+            referrerId = referrerProfile.id;
+            const currentBalance = referrerProfile.points_balance || 0;
+
+            await supabase
+              .from('profiles')
+              .update({ points_balance: currentBalance + 4 })
+              .eq('id', referrerId);
+          }
+        }
+
+        const myReferralCode = data.user.id.replace(/-/g, '').substring(0, 8);
+
+        const { error: profileError } = await supabase.from('profiles').upsert([
+          { 
+            id: data.user.id, 
+            full_name: fullName,
+            contact_info: contactInfo,
+            role: 'provider', 
+            points_balance: 10,
+            referral_code: myReferralCode,
+            invited_by: referrerId,
+            is_verified: true
+          }
+        ]);
+        if (profileError) throw profileError;
+      }
+      
+      setMessage({ text: 'Konto zostało pomyślnie utworzone! 🎉', type: 'success' });
+      setTimeout(() => router.push('/'), 1000);
+
     } catch (error: any) {
       setMessage({ text: error.message, type: 'error' });
     } finally {
@@ -136,12 +189,12 @@ function LoginForm() {
     <div className="p-6 flex flex-col justify-center min-h-[75vh] max-w-md mx-auto">
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          {isLogin ? 'Witaj ponownie! 👋' : 'Dołącz do nas! 🚀'}
+          {isLogin ? 'Witaj ponownie! 👋' : (step === 'verify' ? 'Potwierdź e-mail ✉️' : 'Dołącz do nas! 🚀')}
         </h1>
         <p className="text-gray-500 text-sm">
-          {isLogin ? 'Zaloguj się, aby zarządzać zleceniami' : 'Stwórz konto i zacznij działać'}
+          {isLogin ? 'Zaloguj się, aby zarządzać zleceniami' : (step === 'verify' ? `Wpisz kod wysłany na adres ${email}` : 'Stwórz konto i zacznij działać')}
         </p>
-        {refCode && !isLogin && (
+        {refCode && !isLogin && step === 'form' && (
           <div className="mt-2 text-xs bg-violet-50 text-violet-700 p-2 rounded-lg font-medium">
             Rejestrujesz się z polecenia znajomego! ✨
           </div>
@@ -156,55 +209,87 @@ function LoginForm() {
         </div>
       )}
 
-      <form className="flex flex-col gap-3" onSubmit={handleAuth}>
-        {!isLogin && (
-          <>
-            <Input 
-              label="Imię i nazwisko" 
+      {/* ШАГ 2: ВВОД КОДА ВЕРИФИКАЦИИ */}
+      {step === 'verify' ? (
+        <form className="flex flex-col gap-4" onSubmit={handleVerifyAndRegister}>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-700">Kod weryfikacyjny (6 cyfr)</label>
+            <input 
               type="text" 
-              placeholder="np. Jan Kowalski" 
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required={!isLogin} 
+              placeholder="123456" 
+              maxLength={6}
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              required
+              className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-center text-xl font-mono tracking-widest text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500/25"
             />
-            <Input 
-              label="Numer telefonu" 
-              type="text" 
-              placeholder="np. +48 123 456 789" 
-              value={contactInfo}
-              onChange={(e) => setContactInfo(e.target.value)}
-              required={!isLogin} 
-            />
-          </>
-        )}
+          </div>
 
-        <Input 
-          label="Adres e-mail" 
-          type="email" 
-          placeholder="np. jan@kowalski.pl" 
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required 
-        />
-        <Input 
-          label="Hasło" 
-          type="password" 
-          placeholder="Minimum 6 znaków" 
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required 
-        />
+          <Button fullWidth className="mt-2" disabled={isLoading}>
+            {isLoading ? 'Weryfikacja...' : 'Potwierdź i zarejestruj się'}
+          </Button>
 
-        <Button fullWidth className="mt-4" disabled={isLoading}>
-          {isLoading ? 'Przetwarzanie...' : (isLogin ? 'Zaloguj się' : 'Zarejestruj się')}
-        </Button>
-      </form>
+          <button 
+            type="button" 
+            onClick={() => setStep('form')}
+            className="text-xs text-gray-500 hover:text-gray-800 text-center mt-2"
+          >
+            ← Wróć do edycji danych
+          </button>
+        </form>
+      ) : (
+        /* ШАГ 1: ФОРМА ВХОДА ИЛИ РЕГИСТРАЦИИ */
+        <form className="flex flex-col gap-3" onSubmit={handleAuth}>
+          {!isLogin && (
+            <>
+              <Input 
+                label="Imię i nazwisko" 
+                type="text" 
+                placeholder="np. Jan Kowalski" 
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required={!isLogin} 
+              />
+              <Input 
+                label="Numer telefonu" 
+                type="text" 
+                placeholder="np. +48 123 456 789" 
+                value={contactInfo}
+                onChange={(e) => setContactInfo(e.target.value)}
+                required={!isLogin} 
+              />
+            </>
+          )}
+
+          <Input 
+            label="Adres e-mail" 
+            type="email" 
+            placeholder="np. jan@kowalski.pl" 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required 
+          />
+          <Input 
+            label="Hasło" 
+            type="password" 
+            placeholder="Minimum 6 znaków" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required 
+          />
+
+          <Button fullWidth className="mt-4" disabled={isLoading}>
+            {isLoading ? 'Przetwarzanie...' : (isLogin ? 'Zaloguj się' : 'Dalej (Wyślij kod)')}
+          </Button>
+        </form>
+      )}
 
       <div className="mt-8 text-center text-sm text-gray-500">
         {isLogin ? 'Nie masz konta? ' : 'Masz już konto? '}
         <button 
           onClick={() => {
             setIsLogin(!isLogin);
+            setStep('form');
             setMessage(null);
           }}
           className="text-violet-600 font-semibold hover:underline"
