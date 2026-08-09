@@ -25,8 +25,10 @@ export default function ProfilePage() {
   const [newImageUrl, setNewImageUrl] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingPortal, setIsLoadingPortal] = useState(false); // Стейт для загрузки портала Stripe
+  const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
+
+  const [copiedId, setCopiedId] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -50,7 +52,6 @@ export default function ProfilePage() {
       setSession(session);
       const userId = session.user.id;
 
-      // === Завантаження даних ===
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -122,7 +123,6 @@ export default function ProfilePage() {
         setIsLoading(false);
       }
 
-      // === REALTIME (безпечно) ===
       await cleanupChannel();
 
       if (!isMounted) return;
@@ -135,7 +135,6 @@ export default function ProfilePage() {
           async () => {
             if (!isMounted) return;
 
-            // Перезавантажуємо мої оголошення
             const { data: freshOrders } = await supabase
               .from('orders')
               .select('*')
@@ -143,7 +142,6 @@ export default function ProfilePage() {
               .order('created_at', { ascending: false });
             if (freshOrders && isMounted) setMyOrders(freshOrders);
 
-            // Якщо виконавець — перезавантажуємо активні замовлення
             if (profileData?.role === 'provider') {
               const { data: freshAssigned } = await supabase
                 .from('orders')
@@ -257,111 +255,264 @@ export default function ProfilePage() {
   if (isLoading && !profile) {
     return (
       <div className="p-6 flex justify-center items-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-razdwa-purple border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-violet-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="p-4 pb-24 max-w-md mx-auto">
-      <div className="flex justify-between items-center mb-4 mt-3">
-        <h1 className="text-2xl font-bold text-razdwa-dark">Mój profil</h1>
-        <button
-          onClick={() => setIsEditing(!isEditing)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-razdwa-purple bg-purple-50 px-3 py-2 rounded-xl border border-purple-100 hover:bg-purple-100 transition-colors shadow-sm"
-        >
-          {isEditing ? <X size={14} /> : <Edit2 size={14} />}
-          {isEditing ? 'Zamknij edycję' : 'Edytuj profil'}
-        </button>
-      </div>
-
-      <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 mb-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-razdwa-purple text-white rounded-full flex items-center justify-center">
-            <Wallet size={20} />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-semibold uppercase">Twój balans</p>
-            <p className="text-lg font-bold text-razdwa-purple">{profile?.points_balance || 0} pkt</p>
-          </div>
+    <div className="p-4 pb-28 max-w-md mx-auto">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5 mt-2">
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Mój profil</h1>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push('/wallet')}
+            className="
+              flex items-center gap-1.5
+              bg-violet-600 text-white text-xs font-bold
+              px-3 py-2 rounded-xl
+              hover:bg-violet-700 transition-colors
+              shadow-sm
+            "
+          >
+            <Plus size={14} />
+            Doładuj
+          </button>
+          
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className="
+              flex items-center gap-1.5
+              text-xs font-semibold text-violet-700
+              bg-violet-50 px-3 py-2 rounded-xl
+              border border-violet-100
+              hover:bg-violet-100 transition-colors
+            "
+          >
+            {isEditing ? <X size={14} /> : <Edit2 size={14} />}
+            {isEditing ? 'Zamknij' : 'Edytuj'}
+          </button>
         </div>
         
-        <div className="flex flex-col items-end gap-1.5">
-          <span className="text-xs bg-white text-razdwa-purple font-semibold px-3 py-1 rounded-lg border border-purple-100">
-            {profile?.role === 'provider' ? 'Wykonawca' : 'Zleceniodawca'}
-          </span>
-          {profile?.role === 'provider' && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 text-[11px] font-bold text-green-700 bg-white px-2 py-0.5 rounded-md border border-green-100">
-                <CheckCircle size={12} className="text-green-600" />
-                <span>{reviews.length} wykonane</span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] font-bold text-yellow-600 bg-white px-2 py-0.5 rounded-md border border-yellow-100">
-                <Star size={12} className="fill-yellow-400 text-yellow-400" />
-                <span>{averageRating}</span>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Кнопка управления подпиской PRO (Stripe Customer Portal) */}
+{/* Balance Card */}
+<div className="
+  relative overflow-hidden
+  bg-gradient-to-br from-violet-600 to-fuchsia-600
+  rounded-2xl p-5 mb-4
+  shadow-[0_4px_20px_rgba(139,92,246,0.25)]
+">
+  <div className="flex items-center justify-between">
+    <div className="flex items-center gap-3">
+      <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+        <Wallet size={22} className="text-white" />
+      </div>
+      <div>
+        <p className="text-[11px] text-white/70 font-medium uppercase tracking-wider">
+          Twój balans
+        </p>
+        <p className="text-2xl font-bold text-white tracking-tight">
+          {profile?.points_balance || 0}
+          <span className="text-base font-semibold ml-1 opacity-80">pkt</span>
+        </p>
+      </div>
+    </div>
+    
+    <div className="flex flex-col items-end gap-1.5">
+      <span className="text-[11px] bg-white/20 text-white font-semibold px-2.5 py-1 rounded-lg backdrop-blur-sm">
+        {profile?.role === 'provider' ? 'Wykonawca' : 'Zleceniodawca'}
+      </span>
+
+      {profile?.role === 'provider' && (
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 text-[11px] font-bold text-white bg-white/15 px-2 py-0.5 rounded-md">
+            <CheckCircle size={11} />
+            <span>{reviews.length}</span>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] font-bold text-yellow-300 bg-white/15 px-2 py-0.5 rounded-md">
+            <Star size={11} className="fill-yellow-300" />
+            <span>{averageRating}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+
+  {/* PRO Status */}
+  {profile?.role === 'provider' && profile?.is_pro && (
+    <div className="mt-4 pt-3.5 border-t border-white/20 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 bg-white/20 px-2.5 py-1 rounded-full">
+          <Star size={12} className="fill-yellow-300 text-yellow-300" />
+          <span className="text-[11px] font-black text-white tracking-wide uppercase">
+            PRO
+          </span>
+        </div>
+        <span className="text-[12px] text-white/80 font-medium">
+          Aktywne
+        </span>
+      </div>
+
+      {profile?.pro_expires_at && (
+        <span className="text-[11px] text-white/70 font-medium">
+          do {new Date(profile.pro_expires_at).toLocaleDateString('pl-PL')}
+        </span>
+      )}
+    </div>
+  )}
+
+  {/* User ID + Copy */}
+<div className={`
+  flex items-center justify-between
+  ${profile?.role === 'provider' && profile?.is_pro ? 'mt-3' : 'mt-4 pt-3.5 border-t border-white/20'}
+`}>
+  <div className="flex items-center gap-2 min-w-0">
+    <span className="text-[11px] text-white/60 font-medium shrink-0">ID:</span>
+    <span className="text-[11px] text-white/90 font-mono truncate">
+      {session?.user?.id || profile?.id}
+    </span>
+  </div>
+
+  <button
+    type="button"
+    onClick={() => {
+      const id = session?.user?.id || profile?.id;
+      if (id) {
+        navigator.clipboard.writeText(id);
+        setCopiedId(true);
+        setTimeout(() => setCopiedId(false), 2000);
+      }
+    }}
+    className="
+      flex items-center gap-1.5
+      text-[11px] font-semibold text-white
+      bg-white/15 hover:bg-white/25
+      px-2.5 py-1 rounded-lg
+      transition-colors
+      shrink-0
+      min-w-[76px] justify-center
+    "
+    title="Kopiuj ID"
+  >
+    {copiedId ? (
+      <span className="text-emerald-300">Skopiowano!</span>
+    ) : (
+      <>
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width="12" 
+          height="12" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2.5" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        >
+          <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+        </svg>
+        Kopiuj
+      </>
+    )}
+  </button>
+</div>
+</div>
+
+      {/* PRO Subscription Button */}
       {profile?.role === 'provider' && profile?.is_pro && (
         <div className="mb-5">
           <button
             onClick={handleManageSubscription}
             disabled={isLoadingPortal}
-            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2.5 px-4 rounded-xl text-xs font-bold shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="
+              w-full
+              bg-gradient-to-r from-violet-600 to-fuchsia-600
+              text-white py-3 px-4 rounded-xl
+              text-sm font-bold
+              shadow-[0_4px_14px_rgba(139,92,246,0.3)]
+              hover:opacity-95 active:scale-[0.98]
+              transition-all
+              flex items-center justify-center gap-2
+              disabled:opacity-50
+            "
           >
-            <Star size={14} className="fill-yellow-300 text-yellow-300" />
-            {isLoadingPortal ? 'Ładowanie portalu...' : 'Zarządzaj subskrypcją PRO (Anuluj)'}
+            <Star size={15} className="fill-yellow-300 text-yellow-300" />
+            {isLoadingPortal ? 'Ładowanie portalu...' : 'Zarządzaj subskrypcją PRO'}
           </button>
         </div>
       )}
 
+      {/* Message */}
       {message && (
-        <div className={`p-3 mb-4 rounded-xl text-sm font-medium text-center ${
-          message.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
-        }`}>
+        <div className={`
+          p-3.5 mb-4 rounded-xl text-sm font-medium text-center
+          ${message.type === 'error' 
+            ? 'bg-red-50 text-red-600 border border-red-100' 
+            : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}
+        `}>
           {message.text}
         </div>
       )}
 
+      {/* Notifications */}
       {profile?.role === 'provider' && notifications.length > 0 && (
-        <div className="mb-5 bg-green-50 border border-green-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Bell size={18} className="text-green-700" />
-            <h3 className="font-bold text-xs text-green-800 uppercase tracking-wider">Nowe powiadomienia</h3>
-          </div>
-          {notifications.map((notif) => (
-            <div key={notif.id} className="bg-white p-3 rounded-xl border border-green-100 flex flex-col gap-1.5 shadow-sm">
-              <p className="font-bold text-xs text-razdwa-dark">{notif.title}</p>
-              <p className="text-xs text-gray-600">{notif.message}</p>
-              <button
-                onClick={async () => {
-                  await supabase.from('notifications').update({ is_read: true }).eq('id', notif.id);
-                  setNotifications(notifications.filter(n => n.id !== notif.id));
-                  if (notif.order_id) {
-                    router.push(`/order/${notif.order_id}`);
-                  }
-                }}
-                className="mt-1 self-start text-[11px] font-semibold text-razdwa-purple bg-purple-50 px-2.5 py-1 rounded-lg hover:bg-purple-100 transition-colors"
-              >
-                Przejdź do zlecenia →
-              </button>
+        <div className="mb-5 bg-emerald-50 border border-emerald-100 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+              <Bell size={16} className="text-emerald-700" />
             </div>
-          ))}
+            <h3 className="font-bold text-sm text-emerald-900">Nowe powiadomienia</h3>
+          </div>
+          
+          <div className="flex flex-col gap-2.5">
+            {notifications.map((notif) => (
+              <div key={notif.id} className="bg-white p-3.5 rounded-xl border border-emerald-100 shadow-sm">
+                <p className="font-bold text-sm text-gray-900">{notif.title}</p>
+                <p className="text-xs text-gray-600 mt-1 leading-relaxed">{notif.message}</p>
+                <button
+                  onClick={async () => {
+                    await supabase.from('notifications').update({ is_read: true }).eq('id', notif.id);
+                    setNotifications(notifications.filter(n => n.id !== notif.id));
+                    if (notif.order_id) {
+                      router.push(`/order/${notif.order_id}`);
+                    }
+                  }}
+                  className="
+                    mt-2.5 self-start
+                    text-xs font-semibold text-violet-700
+                    bg-violet-50 hover:bg-violet-100
+                    px-3 py-1.5 rounded-lg
+                    transition-colors
+                  "
+                >
+                  Przejdź do zlecenia →
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
+      {/* Active Assigned Orders */}
       {profile?.role === 'provider' && activeAssignedOrders.length > 0 && (
-        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+        <div className="mb-5 bg-amber-50 border border-amber-100 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
-            <Briefcase size={18} className="text-amber-700" />
+            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+              <Briefcase size={16} className="text-amber-700" />
+            </div>
             <h2 className="font-bold text-sm text-amber-900">
-              Zlecenie w realizacji <span className="bg-amber-200 text-amber-800 text-[10px] px-2 py-0.5 rounded-md ml-1">Aktywne</span>
+              Zlecenie w realizacji
             </h2>
+            <span className="ml-auto text-[10px] font-bold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-md">
+              Aktywne
+            </span>
           </div>
+          
           <div className="flex flex-col gap-2.5">
             {activeAssignedOrders.map((order) => (
               <OrderCard 
@@ -381,95 +532,47 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* Profile Info / Edit Form */}
       {!isEditing ? (
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 mb-5 shadow-sm flex flex-col gap-3">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Imię / Nazwa</p>
-            <p className="text-sm font-bold text-razdwa-dark">{profile?.full_name || 'Nie podano'}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Numer telefonu</p>
-            <p className="text-sm font-bold text-razdwa-dark">{profile?.contact_info || 'Nie podano'}</p>
-          </div>
-
-          {profile?.role === 'provider' && (
-            <div className="pt-3 border-t border-gray-50">
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Portfolio realizacji</p>
-              {(!profile.portfolio || profile.portfolio.length === 0) ? (
-                <p className="text-xs text-gray-400 italic">Brak zdjęć w portfolio. Kliknij „Edytuj profil”, aby dodać prace.</p>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  {profile.portfolio.map((img: string, idx: number) => (
-                    <a key={idx} href={img} target="_blank" rel="noopener noreferrer" className="block aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
-                      <img src={img} alt="Portfolio" className="w-full h-full object-cover hover:scale-105 transition-transform" />
-                    </a>
-                  ))}
-                </div>
-              )}
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-5 shadow-sm">
+          <div className="space-y-4">
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Imię / Nazwa</p>
+              <p className="text-base font-semibold text-gray-900">{profile?.full_name || 'Nie podano'}</p>
             </div>
-          )}
+            
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Numer telefonu</p>
+              <p className="text-base font-semibold text-gray-900">{profile?.contact_info || 'Nie podano'}</p>
+            </div>   
+          </div>
         </div>
       ) : (
-        <form onSubmit={handleUpdate} className="bg-white border border-gray-100 rounded-2xl p-4 mb-5 shadow-sm flex flex-col gap-3">
-          <div className="flex justify-between items-center mb-1">
-            <h2 className="font-bold text-sm text-razdwa-dark">Edycja danych</h2>
-            <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">Limit: raz na 14 dni</span>
+        <form onSubmit={handleUpdate} className="bg-white border border-gray-100 rounded-2xl p-5 mb-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-base text-gray-900">Edycja danych</h2>
+            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100">
+              Limit: raz na 14 dni
+            </span>
           </div>
 
-          <Input 
-            label="Imię / Nazwa" 
-            placeholder="np. Jan Kowalski"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
+          <div className="space-y-3">
+            <Input 
+              label="Imię / Nazwa" 
+              placeholder="np. Jan Kowalski"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
 
-          <Input 
-            label="Numer telefonu" 
-            placeholder="np. +48 123 456 789"
-            value={contactInfo}
-            onChange={(e) => setContactInfo(e.target.value)}
-          />
+            <Input 
+              label="Numer telefonu" 
+              placeholder="np. +48 123 456 789"
+              value={contactInfo}
+              onChange={(e) => setContactInfo(e.target.value)}
+            />   
+          </div>
 
-          {profile?.role === 'provider' && (
-            <div className="flex flex-col gap-1.5 mt-1">
-              <label className="text-xs font-semibold text-gray-700">Portfolio (Ссылки на фото)</label>
-              <div className="flex gap-2">
-                <input 
-                  type="url"
-                  placeholder="https://example.com/photo.jpg"
-                  value={newImageUrl}
-                  onChange={(e) => setNewImageUrl(e.target.value)}
-                  className="flex-1 border border-gray-200 rounded-xl p-2 text-xs focus:outline-none focus:ring-2 focus:ring-razdwa-purple/50"
-                />
-                <button
-                  type="button"
-                  onClick={addPortfolioImage}
-                  className="bg-razdwa-purple text-white px-3 py-2 rounded-xl text-xs font-semibold hover:bg-opacity-90 flex items-center gap-1 shrink-0"
-                >
-                  <Plus size={14} /> Dodaj
-                </button>
-              </div>
-
-              {portfolioImages.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  {portfolioImages.map((img, idx) => (
-                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 group bg-gray-50">
-                      <img src={img} alt="Preview" className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removePortfolioImage(idx)}
-                        className="absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2.5 pt-5">
             <Button
               type="button"
               variant="outline"
@@ -485,63 +588,88 @@ export default function ProfilePage() {
         </form>
       )}
 
-      {profile?.role === 'provider' && (
-        <div className="border-t border-gray-100 pt-5 mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <MessageSquare size={18} className="text-razdwa-purple" />
-            <h2 className="font-bold text-sm text-razdwa-dark">
-              Opinie klientów <span className="text-razdwa-purple font-semibold">({reviews.length})</span>
-            </h2>
+{/* Reviews */}
+{profile?.role === 'provider' && (
+  <div className="mb-6">
+    <details className="group bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <summary className="flex items-center justify-between cursor-pointer list-none p-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center">
+            <MessageSquare size={16} className="text-violet-600" />
           </div>
-
-          {reviews.length === 0 ? (
-            <div className="text-center py-6 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-              <p className="text-xs text-gray-500">Nie masz jeszcze żadnych opinii.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {reviews.map((rev) => (
-                <div key={rev.id} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm flex flex-col gap-1.5">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-xs text-razdwa-dark">{rev.client?.full_name || 'Klient'}</span>
-                    <div className="flex items-center gap-1 text-xs text-yellow-500 font-semibold">
-                      <Star size={12} className="fill-yellow-400 text-yellow-400" />
-                      <span>{rev.rating}/5</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-600">{rev.comment || 'Brak komentarza'}</p>
-                  <span className="text-[10px] text-gray-400">
-                    {new Date(rev.created_at).toLocaleDateString('pl-PL')}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          <h2 className="font-bold text-base text-gray-900">
+            Opinie klientów
+            <span className="text-violet-600 font-semibold ml-1.5">({reviews.length})</span>
+          </h2>
         </div>
-      )}
+        <ChevronDown 
+          size={18} 
+          className="text-gray-400 transition-transform duration-200 group-open:rotate-180" 
+        />
+      </summary>
 
-      <div className="border-t border-gray-100 pt-5">
-        <details className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-          <summary className="flex items-center justify-between cursor-pointer list-none">
-            <div className="flex items-center gap-2">
-              <ClipboardList size={18} className="text-razdwa-purple" />
-              <h2 className="font-bold text-sm text-razdwa-dark">
-                Moje ogłoszenia <span className="text-razdwa-purple font-semibold">({myOrders.length})</span>
+      <div className="px-4 pb-4 border-t border-gray-50">
+        {reviews.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-gray-400">Nie masz jeszcze żadnych opinii.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2.5 pt-4">
+            {reviews.map((rev) => (
+              <div 
+                key={rev.id} 
+                className="bg-gray-50/70 border border-gray-100 rounded-xl p-4"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-semibold text-sm text-gray-900">
+                    {rev.client?.full_name || 'Klient'}
+                  </span>
+                  <div className="flex items-center gap-1 text-sm font-semibold text-amber-500">
+                    <Star size={13} className="fill-amber-400 text-amber-400" />
+                    <span>{rev.rating}/5</span>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {rev.comment || 'Brak komentarza'}
+                </p>
+                <span className="text-[11px] text-gray-400 mt-2 block">
+                  {new Date(rev.created_at).toLocaleDateString('pl-PL')}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  </div>
+)}
+
+      {/* My Orders */}
+      <div>
+        <details className="group bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <summary className="flex items-center justify-between cursor-pointer list-none p-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center">
+                <ClipboardList size={16} className="text-violet-600" />
+              </div>
+              <h2 className="font-bold text-base text-gray-900">
+                Moje ogłoszenia
+                <span className="text-violet-600 font-semibold ml-1.5">({myOrders.length})</span>
               </h2>
             </div>
-            <ChevronDown size={18} className="text-gray-400 transition-transform group-open:rotate-180" />
+            <ChevronDown size={18} className="text-gray-400 transition-transform duration-200 group-open:rotate-180" />
           </summary>
 
-          <div className="pt-4 mt-3 border-t border-gray-50">
+          <div className="px-4 pb-4 border-t border-gray-50">
             {myOrders.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-xs text-gray-500 mb-3">Nie dodałeś jeszcze żadnych ogłoszeń.</p>
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-400 mb-4">Nie dodałeś jeszcze żadnych ogłoszeń.</p>
                 <Button onClick={() => router.push('/create')}>
                   Stwórz zlecenie
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 pt-4">
                 {myOrders.map((order) => (
                   <OrderCard 
                     key={order.id} 

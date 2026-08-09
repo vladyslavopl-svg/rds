@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, Wallet, LogOut, CheckCircle, X, Star } from 'lucide-react'; // Добавили Star
+import { Bell, Wallet, LogOut, CheckCircle, X, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export const Header = () => {
@@ -12,7 +12,7 @@ export const Header = () => {
   const [session, setSession] = useState<any>(null);
   const [isProvider, setIsProvider] = useState(false);
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
-  const [isPro, setIsPro] = useState(false); // НОВОЕ: Стейт для статуса PRO
+  const [isPro, setIsPro] = useState(false);
   
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -20,7 +20,7 @@ export const Header = () => {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isMountedRef = useRef(true);
 
- useEffect(() => {
+  useEffect(() => {
     isMountedRef.current = true;
 
     const cleanupChannel = async () => {
@@ -32,10 +32,8 @@ export const Header = () => {
 
     const initHeader = async (userId: string) => {
       await cleanupChannel();
-
       if (!isMountedRef.current) return;
 
-      // Używamy crypto.randomUUID() dla absolutnej gwarancji unikalności
       const uniqueChannelName = `notifications-${userId}-${crypto.randomUUID()}`;
 
       const channel = supabase
@@ -86,8 +84,6 @@ export const Header = () => {
       }
     };
 
-    // Zostawiamy TYLKO onAuthStateChange. 
-    // Automatycznie przechwytuje on początkową sesję (INITIAL_SESSION) przy montowaniu komponentu.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (!isMountedRef.current) return;
@@ -133,108 +129,161 @@ export const Header = () => {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-100 fixed top-0 w-full max-w-md z-50">
-      <div className="flex items-center justify-between pr-4 pl-2 py-4 relative">
-        <Link href="/" className="relative flex items-center group">
-          <div className="animate-fade-in-right relative w-[180px] h-[48px]">
+    <header className="bg-white/95 backdrop-blur-md border-b border-gray-100/80 fixed top-0 w-full max-w-md z-50 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <div className="flex items-center justify-between px-3 py-3.5">
+        
+        {/* Logo */}
+        <Link href="/" className="relative flex items-center shrink-0">
+          <div className="relative w-[170px] h-[44px]">
             <Image
               src="/logo.png"
               alt="RazDwaSzybko"
               fill
-              sizes="300px"
-              className="object-contain object-left scale-125 origin-left"
+              sizes="280px"
+              className="object-contain object-left scale-110 origin-left"
               priority
             />
           </div>
         </Link>
 
-        <div className="flex items-center gap-2 text-razdwa-dark">
+        {/* Right side */}
+        <div className="flex items-center gap-1.5">
           {session ? (
             <>
-              {/* НОВОЕ: Плашка PRO, если у пользователя isPro === true */}
 {isProvider && isPro && (
-                <div 
-                  className="relative flex items-center gap-1.5 bg-gradient-to-tr from-indigo-600 via-purple-600 to-fuchsia-500 px-3 py-1 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.4)] border border-white/25 cursor-default transition-all duration-300 hover:scale-105 hover:shadow-[0_0_15px_rgba(168,85,247,0.6)]" 
-                  title="Aktywne konto PRO"
-                >
-                  {/* Легкий блик сверху для объема */}
-                  <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent"></div>
-                  
-                  <Star 
-                    size={12} 
-                    className="fill-yellow-300 text-yellow-300 drop-shadow-[0_0_4px_rgba(253,224,71,0.8)] animate-pulse" 
-                  />
-                  <span className="text-[11px] font-black text-white tracking-[0.15em] uppercase drop-shadow-md mt-[1px]">
-                    PRO
-                  </span>
-                </div>
-              )}
+  <div
+    className="
+      relative flex items-center gap-1.5
+      px-3.5 py-1.5 rounded-full
+      bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500
+      shadow-[0_2px_8px_rgba(245,158,11,0.45)]
+      border border-amber-300/60
+      cursor-default
+    "
+    title="Aktywne konto PRO"
+  >
+    <Star
+      size={12}
+      className="fill-white text-white drop-shadow-sm"
+    />
+    <span className="
+      text-[11px] font-black text-white
+      tracking-[0.18em] uppercase
+      drop-shadow-sm
+    ">
+      PRO
+    </span>
+  </div>
+)}
 
-              {/* Кошелек показываем всегда, но если есть PRO - поинты не так важны, хотя баланс пусть будет */}
+              {/* Wallet — обычный провайдер */}
               {isProvider && pointsBalance !== null && !isPro && (
-                <Link 
-                  href="/wallet" 
-                  className="flex items-center gap-1.5 bg-purple-50 px-2.5 py-1.5 rounded-lg border border-purple-100 hover:bg-purple-100 transition-colors"
+                <Link
+                  href="/wallet"
+                  className="
+                    flex items-center gap-1.5
+                    bg-violet-50 px-2.5 py-1.5 rounded-xl
+                    border border-violet-100
+                    hover:bg-violet-100 hover:border-violet-200
+                    transition-colors
+                  "
                 >
-                  <Wallet size={15} className="text-razdwa-purple" />
-                  <span className="text-sm font-bold text-razdwa-purple">{pointsBalance} pkt</span>
+                  <Wallet size={14} className="text-violet-600" />
+                  <span className="text-sm font-bold text-violet-700">
+                    {pointsBalance}
+                    <span className="text-[11px] font-semibold ml-0.5 opacity-80">pkt</span>
+                  </span>
                 </Link>
               )}
 
-              {/* Если юзер PRO, кошелек можно сделать менее заметным, чтобы не отвлекал */}
+              {/* Wallet — PRO */}
               {isProvider && pointsBalance !== null && isPro && (
-                <Link 
-                  href="/wallet" 
-                  className="flex items-center gap-1.5 bg-gray-50 px-2 py-1.5 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors"
+                <Link
+                  href="/wallet"
+                  className="
+                    flex items-center gap-1.5
+                    bg-violet-50/70 px-2 py-1.5 rounded-xl
+                    border border-violet-100/80
+                    hover:bg-violet-100 hover:border-violet-200
+                    transition-colors
+                  "
                   title="Twój portfel"
                 >
-                  <Wallet size={14} className="text-gray-400" />
-                  <span className="text-xs font-semibold text-gray-500">{pointsBalance}</span>
+                  <Wallet size={13} className="text-violet-500" />
+                  <span className="text-xs font-semibold text-violet-600">
+                    {pointsBalance}
+                  </span>
                 </Link>
               )}
 
+              {/* Notifications */}
               {isProvider && (
                 <div className="relative">
-                  <button 
+                  <button
                     onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors relative"
+                    className="
+                      relative p-2 rounded-xl
+                      hover:bg-gray-100
+                      transition-colors
+                    "
                     title="Powiadomienia"
                   >
-                    <Bell size={15} className={notifications.length > 0 ? "text-razdwa-purple" : "text-gray-600"} />
+                    <Bell
+                      size={18}
+                      className={notifications.length > 0 ? "text-violet-600" : "text-gray-500"}
+                    />
                     {notifications.length > 0 && (
-                      <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
                         {notifications.length}
                       </span>
                     )}
                   </button>
 
                   {isNotificationsOpen && (
-                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 z-50 flex flex-col gap-2">
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="font-bold text-xs text-razdwa-dark">Powiadomienia</span>
-                        <button onClick={() => setIsNotificationsOpen(false)} className="text-gray-400 hover:text-gray-600">
-                          <X size={15} />
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+                        <span className="font-bold text-sm text-gray-800">Powiadomienia</span>
+                        <button
+                          onClick={() => setIsNotificationsOpen(false)}
+                          className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                        >
+                          <X size={16} />
                         </button>
                       </div>
 
                       {notifications.length === 0 ? (
-                        <p className="text-xs text-gray-400 text-center py-4">Brak nowych powiadomień</p>
+                        <div className="py-10 text-center">
+                          <p className="text-sm text-gray-400">Brak nowych powiadomień</p>
+                        </div>
                       ) : (
-                        <div className="flex flex-col gap-2 max-h-60 overflow-y-auto">
+                        <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
                           {notifications.map((notif) => (
-                            <div 
+                            <div
                               key={notif.id}
                               onClick={() => handleNotificationClick(notif)}
-                              className="bg-purple-50/50 hover:bg-purple-50 border border-purple-100 p-2.5 rounded-xl cursor-pointer transition-colors flex flex-col gap-1"
+                              className="
+                                px-4 py-3 cursor-pointer
+                                hover:bg-violet-50/60
+                                transition-colors
+                              "
                             >
-                              <p className="font-bold text-xs text-razdwa-dark flex items-center gap-1">
-                                <CheckCircle size={12} className="text-green-600" />
-                                {notif.title}
-                              </p>
-                              <p className="text-[11px] text-gray-600 leading-snug">{notif.message}</p>
-                              <span className="text-[9px] text-gray-400 mt-0.5">
-                                {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
+                              <div className="flex items-start gap-2">
+                                <CheckCircle size={15} className="text-emerald-500 mt-0.5 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-[13px] text-gray-900 leading-snug">
+                                    {notif.title}
+                                  </p>
+                                  <p className="text-[12px] text-gray-500 mt-0.5 leading-snug line-clamp-2">
+                                    {notif.message}
+                                  </p>
+                                  <span className="text-[10px] text-gray-400 mt-1.5 block">
+                                    {new Date(notif.created_at).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  }</span>
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -244,18 +293,29 @@ export const Header = () => {
                 </div>
               )}
 
-              <button 
+              {/* Logout */}
+              <button
                 onClick={handleLogout}
-                className="p-2 hover:bg-red-50 text-red-500 rounded-full transition-colors"
+                className="
+                  p-2 rounded-xl
+                  text-gray-400 hover:text-red-500 hover:bg-red-50
+                  transition-colors
+                "
                 title="Wyloguj się"
               >
-                <LogOut size={20} />
+                <LogOut size={18} />
               </button>
             </>
           ) : (
-            <Link 
+            <Link
               href="/login"
-              className="text-sm font-semibold text-razdwa-purple hover:bg-purple-50 px-3 py-1.5 rounded-lg transition-colors"
+              className="
+                text-sm font-semibold text-violet-700
+                bg-violet-50 hover:bg-violet-100
+                px-3.5 py-2 rounded-xl
+                border border-violet-100
+                transition-colors
+              "
             >
               Zaloguj się
             </Link>

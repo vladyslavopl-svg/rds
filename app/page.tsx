@@ -1,55 +1,138 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { OrderCard } from '@/components/ui/OrderCard';
+import { ClipboardList } from 'lucide-react';
+
+const PAGE_SIZE = 10;
 
 export default function Home() {
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchOrders = useCallback(async (pageNum: number, append = false) => {
+    if (pageNum === 0) {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+    } else {
+      setIsLoadingMore(true);
+    }
 
-      if (error) {
-        console.error('Błąd pobierania zleceń:', error);
+    const from = pageNum * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      console.error('Błąd pobierania zleceń:', error);
+    } else {
+      const newOrders = data || [];
+      
+      if (append) {
+        setOrders((prev) => [...prev, ...newOrders]);
       } else {
-        setOrders(data || []);
+        setOrders(newOrders);
       }
-      setIsLoading(false);
-    };
 
-    fetchOrders();
+      // Если пришло меньше PAGE_SIZE — больше данных нет
+      setHasMore(newOrders.length === PAGE_SIZE);
+    }
+
+    setIsLoading(false);
+    setIsLoadingMore(false);
   }, []);
 
+  // Первая загрузка
+  useEffect(() => {
+    fetchOrders(0, false);
+  }, [fetchOrders]);
+
+  // Подгрузка при изменении page
+  useEffect(() => {
+    if (page === 0) return;
+    fetchOrders(page, true);
+  }, [page, fetchOrders]);
+
+  // Intersection Observer для бесконечной прокрутки
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore) {
+          setPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [hasMore, isLoading, isLoadingMore]);
+
   return (
-    <div className="p-4 bg-gray-50 min-h-screen pb-24">
-      <div className="mb-6 mt-3">
-        <h1 className="text-2xl font-bold text-razdwa-dark">Najnowsze zlecenia</h1>
-        <p className="text-gray-500 text-sm">Znajdź pracę, która Ci odpowiada</p>
+    <div className="p-4 pb-28 max-w-md mx-auto min-h-screen">
+      
+      {/* Header */}
+      <div className="mb-6 mt-2">
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          Najnowsze zlecenia
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Znajdź pracę, która Ci odpowiada
+        </p>
       </div>
 
+      {/* Loading (первая загрузка) */}
       {isLoading && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-40 bg-gray-200 animate-pulse rounded-2xl w-full"></div>
+            <div key={i} className="h-36 bg-gray-100 animate-pulse rounded-2xl w-full" />
           ))}
         </div>
       )}
 
+      {/* Empty */}
       {!isLoading && orders.length === 0 && (
-        <div className="text-center py-10">
-          <div className="text-4xl mb-3">📭</div>
-          <h3 className="font-bold text-gray-700">Brak nowych zleceń</h3>
-          <p className="text-sm text-gray-500 mt-1">Bądź pierwszym, który coś doda!</p>
+        <div className="
+          flex flex-col items-center justify-center
+          text-center py-14 px-6
+          bg-white rounded-2xl border border-gray-100 shadow-sm
+        ">
+          <div className="
+            w-14 h-14 mb-3
+            bg-violet-50 rounded-2xl
+            flex items-center justify-center
+          ">
+            <ClipboardList size={24} className="text-violet-400" />
+          </div>
+          <h3 className="font-bold text-gray-800 text-base">Brak nowych zleceń</h3>
+          <p className="text-sm text-gray-500 mt-1.5">
+            Bądź pierwszym, który coś doda!
+          </p>
         </div>
       )}
 
+      {/* Orders list */}
       {!isLoading && orders.length > 0 && (
         <div className="flex flex-col gap-3">
           {orders.map((order) => (
@@ -66,6 +149,16 @@ export default function Home() {
               created_at={order.created_at}
             />
           ))}
+
+          {/* Триггер подгрузки */}
+          <div ref={loadMoreRef} className="py-4 flex justify-center">
+            {isLoadingMore && (
+              <div className="w-6 h-6 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+            )}
+            {!hasMore && (
+              <p className="text-xs text-gray-400">To wszystkie zlecenia</p>
+            )}
+          </div>
         </div>
       )}
     </div>

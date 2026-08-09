@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { MessageSquare, ChevronRight } from 'lucide-react';
+import { MessageSquare, ChevronRight, Search } from 'lucide-react';
 
 export default function ChatsPage() {
   const router = useRouter();
@@ -24,7 +24,6 @@ export default function ChatsPage() {
 
         const userId = session.user.id;
 
-        // Загружаем актуальные непрочитанные из localStorage
         const savedUnread = JSON.parse(localStorage.getItem('razdwa_unread_chats') || '[]');
         setUnreadChatIds(new Set(savedUnread));
 
@@ -81,7 +80,6 @@ export default function ChatsPage() {
 
     fetchChatsAndSubscribe();
 
-    // Синхронизация при возвращении на страницу
     const handleFocus = () => {
       const savedUnread = JSON.parse(localStorage.getItem('razdwa_unread_chats') || '[]');
       setUnreadChatIds(new Set(savedUnread));
@@ -99,54 +97,132 @@ export default function ChatsPage() {
   if (isLoading) {
     return (
       <div className="p-6 flex justify-center items-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-razdwa-purple border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-violet-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="p-4 bg-gray-50 min-h-screen pb-24">
-      <div className="mb-4 mt-3">
-        <h1 className="text-2xl font-bold text-razdwa-dark mb-1">Wiadomości</h1>
-        <p className="text-gray-500 text-sm">Twoje aktywne konwersacje</p>
+    <div className="p-4 pb-28 max-w-md mx-auto min-h-screen">
+      
+      {/* Header */}
+      <div className="mb-6 mt-2">
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Wiadomości</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {chats.length > 0 
+            ? `${chats.length} ${chats.length === 1 ? 'rozmowa' : 'rozmów'}`
+            : 'Twoje aktywne konwersacje'
+          }
+        </p>
       </div>
 
       {chats.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6 mt-4">
-          <div className="text-4xl mb-3">💬</div>
-          <h3 className="font-bold text-gray-700">Brak wiadomości</h3>
-          <p className="text-sm text-gray-500 mt-1">Rozpocznij konwersację ze strony zlecenia.</p>
+        <div className="
+          flex flex-col items-center justify-center
+          text-center py-16 px-6
+          bg-white rounded-2xl border border-gray-100
+          shadow-sm
+        ">
+          <div className="
+            w-16 h-16 mb-4
+            bg-violet-50 rounded-2xl
+            flex items-center justify-center
+          ">
+            <MessageSquare size={28} className="text-violet-500" />
+          </div>
+          <h3 className="font-bold text-gray-800 text-base">Brak wiadomości</h3>
+          <p className="text-sm text-gray-500 mt-1.5 max-w-[240px]">
+            Rozpocznij konwersację ze strony zlecenia
+          </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2.5">
           {chats.map((chat) => {
             const isUnread = unreadChatIds.has(chat.id);
+            
             return (
               <div 
                 key={chat.id}
                 onClick={() => router.push(`/chats/${chat.id}`)}
-                className={`border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex items-center justify-between cursor-pointer ${
-                  isUnread ? 'border-razdwa-purple bg-purple-50/40' : 'bg-white border-gray-100'
-                }`}
+                className={`
+                  group relative
+                  flex items-center gap-3.5
+                  p-4 rounded-2xl
+                  border transition-all duration-200
+                  cursor-pointer
+                  ${isUnread 
+                    ? 'bg-violet-50/70 border-violet-200 shadow-sm' 
+                    : 'bg-white border-gray-100 hover:border-violet-100 hover:shadow-md'
+                  }
+                `}
               >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="relative w-12 h-12 bg-purple-50 text-razdwa-purple rounded-full flex items-center justify-center font-bold flex-shrink-0">
-                    <MessageSquare size={22} />
-                    {/* Одна аккуратная красная точка */}
-                    {isUnread && (
-                      <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse" />
-                    )}
-                  </div>
-                  <div className="overflow-hidden">
-                    <h3 className="font-bold text-razdwa-dark text-sm truncate">
+                {/* Avatar / Icon */}
+                <div className={`
+                  relative shrink-0
+                  w-12 h-12 rounded-xl
+                  flex items-center justify-center
+                  ${isUnread 
+                    ? 'bg-violet-600 text-white' 
+                    : 'bg-violet-50 text-violet-600 group-hover:bg-violet-100'
+                  }
+                  transition-colors
+                `}>
+                  <MessageSquare size={22} />
+                  
+                  {isUnread && (
+                    <span className="
+                      absolute -top-1 -right-1
+                      w-3.5 h-3.5
+                      bg-red-500 rounded-full
+                      border-2 border-white
+                    " />
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`
+                      font-semibold text-[15px] truncate
+                      ${isUnread ? 'text-gray-900' : 'text-gray-800'}
+                    `}>
                       {chat.orders?.title || 'Zlecenie'}
                     </h3>
-                    <p className={`text-xs mt-0.5 truncate ${isUnread ? 'text-razdwa-purple font-semibold' : 'text-gray-500'}`}>
-                      {isUnread ? 'Nowa wiadomość!' : 'Rozmowa dot. zadania'}
-                    </p>
+                    
+                    {isUnread && (
+                      <span className="
+                        shrink-0
+                        text-[10px] font-bold
+                        bg-violet-600 text-white
+                        px-1.5 py-0.5 rounded-md
+                      ">
+                        NOWA
+                      </span>
+                    )}
                   </div>
+                  
+                  <p className={`
+                    text-[13px] mt-0.5 truncate
+                    ${isUnread 
+                      ? 'text-violet-700 font-medium' 
+                      : 'text-gray-500'
+                    }
+                  `}>
+                    {isUnread ? 'Nowa wiadomość' : 'Rozmowa dotycząca zlecenia'}
+                  </p>
                 </div>
-                <ChevronRight size={20} className="text-gray-400 flex-shrink-0 ml-2" />
+
+                {/* Arrow */}
+                <ChevronRight 
+                  size={18} 
+                  className={`
+                    shrink-0 transition-transform
+                    ${isUnread 
+                      ? 'text-violet-500' 
+                      : 'text-gray-300 group-hover:text-violet-400 group-hover:translate-x-0.5'
+                    }
+                  `} 
+                />
               </div>
             );
           })}

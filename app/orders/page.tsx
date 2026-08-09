@@ -24,7 +24,6 @@ export default function OrdersPage() {
   useEffect(() => {
     const fetchOrders = async () => {
       setIsLoading(true);
-      // Загружаем все заказы (включая со статусом in_progress, чтобы на них отображалась плашка)
       const { data, error } = await supabase
         .from('orders')
         .select('*')
@@ -49,55 +48,86 @@ export default function OrdersPage() {
   });
 
   return (
-    <div className="p-4 bg-gray-50 min-h-screen pb-24">
-      <div className="mb-4 mt-3">
-        <h1 className="text-2xl font-bold text-razdwa-dark mb-1">Szukaj zleceń</h1>
-        <p className="text-gray-500 text-sm">Wyszukaj interesujące Cię zadanie</p>
+    <div className="p-4 pb-28 max-w-md mx-auto min-h-screen">
+      
+      {/* Header */}
+      <div className="mb-5 mt-2">
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Szukaj zleceń</h1>
+        <p className="text-sm text-gray-500 mt-1">Wyszukaj interesujące Cię zadanie</p>
       </div>
 
+      {/* Search */}
       <div className="relative mb-4">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
         <input 
           type="text"
           placeholder="Szukaj po tytule lub opisie..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-white border border-gray-200 rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-razdwa-purple/50 shadow-sm"
+          className="
+            w-full
+            bg-white border border-gray-200
+            rounded-xl pl-11 pr-4 py-3
+            text-sm text-gray-900
+            placeholder:text-gray-400
+            focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-400
+            shadow-sm
+            transition-shadow
+          "
         />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-none">
+      {/* Categories */}
+      <div className="flex gap-2 overflow-x-auto pb-3 mb-5 scrollbar-none -mx-1 px-1">
         {categories.map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              selectedCategory === cat
-                ? 'bg-razdwa-purple text-white shadow-sm'
-                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-            }`}
+            className={`
+              px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap
+              transition-all
+              ${selectedCategory === cat
+                ? 'bg-violet-600 text-white shadow-sm'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+              }
+            `}
           >
             {cat}
           </button>
         ))}
       </div>
 
+      {/* Loading */}
       {isLoading && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-40 bg-gray-200 animate-pulse rounded-2xl w-full"></div>
+            <div key={i} className="h-36 bg-gray-100 animate-pulse rounded-2xl w-full" />
           ))}
         </div>
       )}
 
+      {/* Empty */}
       {!isLoading && filteredOrders.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6 mt-4">
-          <div className="text-4xl mb-3">🔍</div>
-          <h3 className="font-bold text-gray-700">Nie znaleziono zleceń</h3>
-          <p className="text-sm text-gray-500 mt-1">Spróbuj zmienić filtry lub wyszukiwane hasło.</p>
+        <div className="
+          flex flex-col items-center justify-center
+          text-center py-14 px-6
+          bg-white rounded-2xl border border-gray-100 shadow-sm
+        ">
+          <div className="
+            w-14 h-14 mb-3
+            bg-violet-50 rounded-2xl
+            flex items-center justify-center
+          ">
+            <Search size={24} className="text-violet-400" />
+          </div>
+          <h3 className="font-bold text-gray-800 text-base">Nie znaleziono zleceń</h3>
+          <p className="text-sm text-gray-500 mt-1.5 max-w-[240px]">
+            Spróbuj zmienić filtry lub wyszukiwane hasło
+          </p>
         </div>
       )}
 
+      {/* Orders list */}
       {!isLoading && filteredOrders.length > 0 && (
         <div className="flex flex-col gap-3">
           {filteredOrders.map((order) => (

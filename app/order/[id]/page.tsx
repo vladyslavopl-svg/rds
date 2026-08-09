@@ -21,13 +21,9 @@ export default function OrderDetailsPage() {
   const [isOwner, setIsOwner] = useState(false);
   const [offers, setOffers] = useState<any[]>([]);
 
-  // Хранилище рейтингов и отзывов для исполнителей: { [providerId]: { rating, count, reviewsList } }
   const [providerStats, setProviderStats] = useState<{ [key: string]: { rating: number, count: number, reviews: any[] } }>({});
-  
-  // Состояние для открытых отзывов конкретного исполнителя в модалке или списке
   const [expandedProviderReviews, setExpandedProviderReviews] = useState<string | null>(null);
 
-  // Состояния для модального окна закрытия заказа
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [rating, setRating] = useState<number>(5);
   const [comment, setComment] = useState('');
@@ -62,7 +58,6 @@ export default function OrderDetailsPage() {
         const ownerCheck = currentUser?.id === orderData.user_id;
         setIsOwner(ownerCheck);
 
-        // Загружаем отклики
         const { data: offersData } = await supabase
           .from('offers')
           .select(`
@@ -70,7 +65,7 @@ export default function OrderDetailsPage() {
             created_at,
             status,
             provider_id,
-            provider:profiles!offers_provider_id_fkey (id, full_name, role, contact_info) 
+            provider:profiles!offers_provider_id_fkey (id, full_name, role, contact_info, is_pro) 
           `)
           .eq('order_id', orderData.id)
           .order('created_at', { ascending: false });
@@ -78,7 +73,6 @@ export default function OrderDetailsPage() {
         if (offersData) {
           setOffers(offersData);
 
-          // Собираем ID всех исполнителей, чтобы подгрузить их отзывы и рейтинг
           const providerIds = offersData
             .map(o => o.provider_id || o.provider?.[0]?.id)
             .filter(Boolean);
@@ -275,7 +269,7 @@ export default function OrderDetailsPage() {
   if (isLoading) {
     return (
       <div className="p-6 flex justify-center items-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-razdwa-purple border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-violet-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -283,8 +277,8 @@ export default function OrderDetailsPage() {
   if (!order) {
     return (
       <div className="p-6 text-center mt-10">
-        <h2 className="text-base font-bold text-razdwa-dark mb-1">Zlecenie nie istnieje</h2>
-        <p className="text-xs text-gray-500 mb-3">Wygląda na to, że to zlecenie zostało usunięte lub nie istnieje.</p>
+        <h2 className="text-lg font-bold text-gray-900 mb-2">Zlecenie nie istnieje</h2>
+        <p className="text-sm text-gray-500 mb-4">Wygląda na to, że to zlecenie zostało usunięte lub nie istnieje.</p>
         <Button onClick={() => router.push('/')}>Wróć na główną</Button>
       </div>
     );
@@ -298,71 +292,116 @@ export default function OrderDetailsPage() {
     : 'Do negocjacji';
 
   return (
-    <div className="bg-white min-h-screen pb-20">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 sticky top-0 bg-white z-10 shadow-sm">
-        <button onClick={() => router.back()} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors -ml-1">
-          <ChevronLeft size={20} className="text-razdwa-dark" />
+    <div className="bg-gray-50 min-h-screen pb-28">
+      
+      {/* Header */}
+      <div className="
+        sticky top-0 z-20
+        flex items-center gap-3 px-4 py-3.5
+        bg-white/95 backdrop-blur-md
+        border-b border-gray-100
+        shadow-[0_1px_3px_rgba(0,0,0,0.04)]
+      ">
+        <button 
+          onClick={() => router.back()} 
+          className="p-2 -ml-1 rounded-xl hover:bg-gray-100 transition-colors"
+        >
+          <ChevronLeft size={22} className="text-gray-700" />
         </button>
-        <span className="font-bold text-sm text-razdwa-dark">Szczegóły zlecenia</span>
+        <span className="font-semibold text-[15px] text-gray-900">Szczegóły zlecenia</span>
       </div>
 
-      <div className="p-4 flex flex-col gap-4">
+      <div className="p-4 flex flex-col gap-4 max-w-md mx-auto">
+        
+        {/* Category + Date */}
         <div className="flex justify-between items-center">
-          <span className="bg-purple-50 text-razdwa-purple text-xs font-semibold px-2.5 py-1 rounded-md flex items-center gap-1">
+          <span className="
+            bg-violet-50 text-violet-700
+            text-xs font-semibold px-2.5 py-1 rounded-lg
+            flex items-center gap-1.5
+          ">
             <Tag size={12} />
             {order.category}
           </span>
-          <span className="flex items-center gap-1 text-gray-400 text-xs">
+          <span className="flex items-center gap-1.5 text-gray-400 text-xs">
             <Clock size={12} />
             {formattedDate}
           </span>
         </div>
 
-        <h1 className="text-lg font-bold text-razdwa-dark leading-snug">{order.title}</h1>
+        {/* Title */}
+        <h1 className="text-xl font-bold text-gray-900 leading-snug tracking-tight">
+          {order.title}
+        </h1>
 
-        <div className="flex flex-col gap-1 text-xs text-gray-500">
+        {/* Location + Deadline */}
+        <div className="flex flex-col gap-1.5 text-sm text-gray-600">
           {order.location && (
-            <div className="flex items-center gap-1.5">
-              <MapPin size={13} className="text-razdwa-purple shrink-0" />
+            <div className="flex items-center gap-2">
+              <MapPin size={15} className="text-violet-500 shrink-0" />
               <span>{order.location}</span>
             </div>
           )}
           {order.deadline && (
-            <div className="flex items-center gap-1.5">
-              <Calendar size={13} className="text-razdwa-purple shrink-0" />
+            <div className="flex items-center gap-2">
+              <Calendar size={15} className="text-violet-500 shrink-0" />
               <span>Termin: {order.deadline}</span>
             </div>
           )}
         </div>
 
-        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex justify-between items-center">
-          <span className="text-gray-500 text-xs font-medium">Proponowany budżet</span>
-          <span className="text-sm font-bold text-green-600">{displayBudget}</span>
+        {/* Budget */}
+        <div className="
+          bg-white rounded-2xl p-4
+          border border-gray-100 shadow-sm
+          flex justify-between items-center
+        ">
+          <span className="text-gray-500 text-sm font-medium">Proponowany budżet</span>
+          <span className="text-base font-bold text-emerald-600">{displayBudget}</span>
         </div>
 
-        <div>
-          <h3 className="font-bold text-razdwa-dark mb-1.5 text-xs uppercase tracking-wider text-gray-400">Opis zadania</h3>
-          <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{order.description}</p>
+        {/* Description */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+          <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            Opis zadania
+          </h3>
+          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+            {order.description}
+          </p>
         </div>
 
+        {/* ========== OWNER VIEW ========== */}
         {isOwner ? (
-          <div className="border-t border-gray-100 pt-4">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="font-bold text-razdwa-dark text-sm">Zgłoszenia ({offers.length})</h3>
-              <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md ${
-                order.status === 'in_progress' ? 'bg-amber-50 text-amber-600' : 'bg-purple-50 text-razdwa-purple'
-              }`}>
-                {order.status === 'in_progress' ? 'Status: Wykonuje się' : 'Status: Otwarte'}
+          <div className="pt-2">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-base text-gray-900">
+                Zgłoszenia
+                <span className="text-violet-600 ml-1.5">({offers.length})</span>
+              </h3>
+              <span className={`
+                text-[11px] font-semibold px-2.5 py-1 rounded-lg
+                ${order.status === 'in_progress' 
+                  ? 'bg-amber-50 text-amber-700 border border-amber-100' 
+                  : 'bg-violet-50 text-violet-700 border border-violet-100'}
+              `}>
+                {order.status === 'in_progress' ? 'W trakcie' : 'Otwarte'}
               </span>
             </div>
             
             {order.status === 'in_progress' && (
-              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex flex-col gap-2">
-                <p className="text-xs font-bold text-amber-800">Wykonawca realizuje to zadanie</p>
-                <p className="text-[11px] text-amber-600">Po zakończeniu prac potwierdź sukces, oceń specjalistę i usuń zlecenie.</p>
+              <div className="mb-4 bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                <p className="text-sm font-bold text-amber-900 mb-1">Wykonawca realizuje to zadanie</p>
+                <p className="text-xs text-amber-700 mb-3">
+                  Po zakończeniu prac potwierdź sukces, oceń specjalistę i zamknij zlecenie.
+                </p>
                 <button
                   onClick={() => setIsCloseModalOpen(true)}
-                  className="mt-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold py-2.5 px-4 rounded-xl transition-colors shadow-sm text-center"
+                  className="
+                    w-full bg-emerald-600 hover:bg-emerald-700
+                    text-white text-sm font-semibold
+                    py-3 px-4 rounded-xl
+                    transition-colors shadow-sm
+                  "
                 >
                   Zamknij zlecenie (Sukces ✓)
                 </button>
@@ -370,63 +409,91 @@ export default function OrderDetailsPage() {
             )}
 
             {offers.length === 0 ? (
-              <div className="text-center py-4 bg-gray-50 rounded-xl border border-gray-100">
-                <p className="text-gray-500 text-xs">Jeszcze nikt się nie zgłosił.</p>
+              <div className="text-center py-8 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <p className="text-sm text-gray-400">Jeszcze nikt się nie zgłosił.</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-3">
                 {offers.map((offer) => {
                   const providerId = offer.provider_id || offer.provider?.id;
                   const isSelected = order.selected_provider_id === providerId;
                   const stats = providerStats[providerId] || { rating: 0, count: 0, reviews: [] };
                   const isReviewsOpen = expandedProviderReviews === providerId;
+                  const providerObj = Array.isArray(offer.provider) ? offer.provider[0] : offer.provider;
 
                   return (
-                    <div key={offer.id} className={`p-3 border rounded-xl flex flex-col gap-2.5 bg-white shadow-sm ${
-                      isSelected ? 'border-green-500 bg-green-50/20' : 'border-gray-200'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-razdwa-purple">
-                            <User size={16} />
-                          </div>
-                          <div>
-                            <p className="font-bold text-razdwa-dark text-xs flex items-center gap-1.5">
-                              {offer.provider?.full_name || 'Fachowiec'}
-                              {isSelected && <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Wybrany</span>}
+                    <div 
+                      key={offer.id} 
+                      className={`
+                        p-4 rounded-2xl border bg-white shadow-sm
+                        ${isSelected ? 'border-emerald-300 bg-emerald-50/30' : 'border-gray-100'}
+                      `}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="
+                          w-10 h-10 shrink-0
+                          bg-violet-100 text-violet-600
+                          rounded-xl flex items-center justify-center
+                        ">
+                          <User size={18} />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm text-gray-900">
+                              {providerObj?.full_name || 'Fachowiec'}
                             </p>
-                            
-                            {/* Рейтинг и количество комментариев */}
-                            <button
-                              type="button"
-                              onClick={() => setExpandedProviderReviews(isReviewsOpen ? null : providerId)}
-                              className="flex items-center gap-2 mt-1 text-[11px] text-gray-500 hover:text-razdwa-purple transition-colors"
-                            >
-                              <div className="flex items-center gap-0.5 text-yellow-600 font-semibold">
-                                <Star size={11} className="fill-yellow-400 text-yellow-400" />
-                                <span>{stats.rating}</span>
+
+                            {providerObj?.is_pro && (
+                              <div className="
+                                flex items-center gap-1
+                                bg-gradient-to-r from-violet-600 to-fuchsia-600
+                                px-2 py-0.5 rounded-full
+                              ">
+                                <Star size={10} className="fill-yellow-300 text-yellow-300" />
+                                <span className="text-[9px] font-black text-white tracking-wide uppercase">
+                                  PRO
+                                </span>
                               </div>
-                              <span className="text-gray-300">•</span>
-                              <span className="underline">Opinie ({stats.count})</span>
-                              <ChevronDown size={12} className={`transition-transform ${isReviewsOpen ? 'rotate-180' : ''}`} />
-                            </button>
+                            )}
+
+                            {isSelected && (
+                              <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md">
+                                Wybrany
+                              </span>
+                            )}
                           </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => setExpandedProviderReviews(isReviewsOpen ? null : providerId)}
+                            className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500 hover:text-violet-600 transition-colors"
+                          >
+                            <div className="flex items-center gap-0.5 text-amber-500 font-semibold">
+                              <Star size={12} className="fill-amber-400 text-amber-400" />
+                              <span>{stats.rating}</span>
+                            </div>
+                            <span className="text-gray-300">•</span>
+                            <span className="underline">Opinie ({stats.count})</span>
+                            <ChevronDown size={13} className={`transition-transform ${isReviewsOpen ? 'rotate-180' : ''}`} />
+                          </button>
                         </div>
                       </div>
 
-                      {/* Выпадающий список комментариев */}
                       {isReviewsOpen && (
-                        <div className="bg-gray-50 rounded-xl p-2.5 border border-gray-100 flex flex-col gap-2 mt-1">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Komentarze klientów:</p>
+                        <div className="mt-3 bg-gray-50 rounded-xl p-3 border border-gray-100 flex flex-col gap-2">
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                            Komentarze klientów
+                          </p>
                           {stats.reviews.length === 0 ? (
-                            <p className="text-[11px] text-gray-500 italic">Brak opinii</p>
+                            <p className="text-xs text-gray-400 italic">Brak opinii</p>
                           ) : (
                             stats.reviews.map((rev) => (
-                              <div key={rev.id} className="bg-white p-2 rounded-lg border border-gray-100 text-[11px] flex flex-col gap-1">
-                                <div className="flex justify-between items-center font-semibold text-razdwa-dark">
+                              <div key={rev.id} className="bg-white p-2.5 rounded-lg border border-gray-100 text-xs">
+                                <div className="flex justify-between items-center font-semibold text-gray-800 mb-1">
                                   <span>{rev.client?.full_name || 'Klient'}</span>
-                                  <div className="flex items-center gap-0.5 text-yellow-500">
-                                    <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                  <div className="flex items-center gap-0.5 text-amber-500">
+                                    <Star size={11} className="fill-amber-400 text-amber-400" />
                                     <span>{rev.rating}/5</span>
                                   </div>
                                 </div>
@@ -437,86 +504,97 @@ export default function OrderDetailsPage() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2 pt-2 border-t border-gray-50">
-                        {offer.provider?.contact_info && (
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50">
+                        {providerObj?.contact_info && (
                           <a 
-                            href={`tel:${offer.provider.contact_info}`}
-                            className="flex-1 text-center text-xs font-semibold text-razdwa-dark bg-gray-100 py-2 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1"
+                            href={`tel:${providerObj.contact_info}`}
+                            className="
+                              flex-1 flex items-center justify-center gap-1.5
+                              text-xs font-semibold text-gray-700
+                              bg-gray-100 hover:bg-gray-200
+                              py-2.5 rounded-xl transition-colors
+                            "
                           >
-                            <Phone size={12} />
+                            <Phone size={13} />
                             Zadzwoń
                           </a>
                         )}
                         
                         <button 
                           onClick={() => openChatWithProvider(providerId)}
-                          className="flex-1 flex items-center justify-center gap-1 text-xs font-semibold text-white bg-razdwa-purple py-2 rounded-lg hover:bg-opacity-90 transition-colors shadow-sm"
+                          className="
+                            flex-1 flex items-center justify-center gap-1.5
+                            text-xs font-semibold text-white
+                            bg-violet-600 hover:bg-violet-700
+                            py-2.5 rounded-xl transition-colors shadow-sm
+                          "
                         >
-                          <MessageSquare size={12} />
+                          <MessageSquare size={13} />
                           Napisz
                         </button>
                       </div>
 
-{order.status !== 'in_progress' && (
-  <button
-    onClick={async () => {
-      const providerId = offer.provider_id || offer.provider?.id;
-      
-      // 1. Обновляем статус заказа и записываем выбранного исполнителя
-      const { error: orderUpdateError } = await supabase
-        .from('orders')
-        .update({ status: 'in_progress', selected_provider_id: providerId })
-        .eq('id', order.id);
+                      {order.status !== 'in_progress' && (
+                        <button
+                          onClick={async () => {
+                            const providerId = offer.provider_id || offer.provider?.id;
+                            
+                            const { error: orderUpdateError } = await supabase
+                              .from('orders')
+                              .update({ status: 'in_progress', selected_provider_id: providerId })
+                              .eq('id', order.id);
 
-      if (orderUpdateError) {
-        alert(`Błąd zapisu: ${orderUpdateError.message}`);
-        return;
-      }
+                            if (orderUpdateError) {
+                              alert(`Błąd zapisu: ${orderUpdateError.message}`);
+                              return;
+                            }
 
-      // 2. Отправляем уведомление выбранному исполнителю
-      const { error: notifError } = await supabase.from('notifications').insert([
-        {
-          user_id: providerId,
-          title: 'Gratulacje! Wybrano Cię',
-          message: `Klient wybrał Cię do realizacji zlecenia: "${order.title}".`,
-          order_id: order.id
-        }
-      ]);
+                            await supabase.from('notifications').insert([
+                              {
+                                user_id: providerId,
+                                title: 'Gratulacje! Wybrano Cię',
+                                message: `Klient wybrał Cię do realizacji zlecenia: "${order.title}".`,
+                                order_id: order.id
+                              }
+                            ]);
 
-      if (notifError) {
-        console.error('Błąd wysyłania powiadomienia:', notifError);
-      }
-
-      setOrder({ ...order, status: 'in_progress', selected_provider_id: providerId });
-      alert('Wykonawca został pomyślnie wybrany!');
-    }}
-    className="w-full mt-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition-colors shadow-sm"
-  >
-    Wybierz jako wykonawcę
-  </button>
-)}
+                            setOrder({ ...order, status: 'in_progress', selected_provider_id: providerId });
+                            alert('Wykonawca został pomyślnie wybrany!');
+                          }}
+                          className="
+                            w-full mt-2
+                            bg-blue-600 hover:bg-blue-700
+                            text-white text-xs font-semibold
+                            py-2.5 rounded-xl transition-colors shadow-sm
+                          "
+                        >
+                          Wybierz jako wykonawcę
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
 
-            {/* Модальное окно завершения и оценки */}
+            {/* Close Modal */}
             {isCloseModalOpen && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl flex flex-col gap-4">
-                  <h3 className="font-bold text-base text-razdwa-dark">Zakończenie zlecenia</h3>
-                  <p className="text-xs text-gray-500">Oceń pracę wykonawcy. Twoja opinia pojawi się na jego wizytówce.</p>
+                  <h3 className="font-bold text-lg text-gray-900">Zakończenie zlecenia</h3>
+                  <p className="text-sm text-gray-500">
+                    Oceń pracę wykonawcy. Twoja opinia pojawi się na jego profilu.
+                  </p>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-700">Ocena (0 - 5 gwiazdek)</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold text-gray-700">Ocena</label>
                     <div className="flex gap-2">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <button
                           type="button"
                           key={star}
                           onClick={() => setRating(star)}
-                          className={`text-xl ${star <= rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                          className={`text-2xl transition-colors ${star <= rating ? 'text-amber-400' : 'text-gray-300'}`}
                         >
                           ★
                         </button>
@@ -524,18 +602,21 @@ export default function OrderDetailsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-700">Komentarz / Opinia</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-semibold text-gray-700">Komentarz</label>
                     <textarea
                       rows={3}
                       placeholder="Napisz kilka słów o współpracy..."
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-razdwa-purple/50"
+                      className="
+                        w-full border border-gray-200 rounded-xl p-3 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-400
+                      "
                     />
                   </div>
 
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2.5 pt-1">
                     <Button
                       variant="outline"
                       fullWidth
@@ -568,7 +649,7 @@ export default function OrderDetailsPage() {
                           if (orderError) throw orderError;
 
                           setIsCloseModalOpen(false);
-                          alert('Zlecenie zostało pomyślnie zamknięte, a opinia zapisana w profilu wykonawcy!');
+                          alert('Zlecenie zostało pomyślnie zamknięte!');
                           router.push('/profile');
                         } catch (err: any) {
                           console.error(err);
@@ -586,97 +667,133 @@ export default function OrderDetailsPage() {
             )}
           </div>
         ) : (
+          /* ========== PROVIDER VIEW ========== */
           <>
             {message && (
-              <div className={`p-3 rounded-xl text-xs font-medium text-center shadow-sm ${
-                message.type === 'error' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-green-50 text-green-600 border border-green-100'
-              }`}>
+              <div className={`
+                p-3.5 rounded-xl text-sm font-medium text-center
+                ${message.type === 'error' 
+                  ? 'bg-red-50 text-red-600 border border-red-100' 
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}
+              `}>
                 {message.text}
               </div>
             )}
             
             {hasApplied ? (
-              <div className="bg-green-50 border border-green-100 rounded-xl p-3.5 flex flex-col gap-2.5 shadow-sm">
-                <div className="text-green-700 font-bold text-xs flex items-center gap-1.5">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 shadow-sm">
+                <div className="text-emerald-700 font-bold text-sm flex items-center gap-2 mb-2">
                   <span>✓ Oferta została złożona</span>
                 </div>
-                <p className="text-[11px] text-gray-600">
-                  Możesz skontaktować się z klientem bezpośrednio:
+                <p className="text-xs text-gray-600 mb-3">
+                  Możesz skontaktować się z klientem:
                 </p>
-                <div className="flex items-center gap-2 pt-2 border-t border-green-100">
+                <div className="flex items-center gap-2">
                   {clientProfile?.contact_info && (
                     <a 
                       href={`tel:${clientProfile.contact_info}`}
-                      className="flex-1 text-center text-xs font-semibold text-razdwa-dark bg-white border border-gray-200 py-2.5 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 shadow-sm"
+                      className="
+                        flex-1 flex items-center justify-center gap-1.5
+                        text-xs font-semibold text-gray-700
+                        bg-white border border-gray-200
+                        py-2.5 rounded-xl hover:bg-gray-50 transition-colors shadow-sm
+                      "
                     >
-                      <Phone size={12} />
+                      <Phone size={13} />
                       Zadzwoń
                     </a>
                   )}
                   <button 
                     onClick={openOrCreateChatForProvider}
-                    className="flex-1 flex items-center justify-center gap-1 text-xs font-semibold text-white bg-razdwa-purple py-2.5 rounded-xl hover:bg-opacity-90 transition-colors shadow-sm"
+                    className="
+                      flex-1 flex items-center justify-center gap-1.5
+                      text-xs font-semibold text-white
+                      bg-violet-600 hover:bg-violet-700
+                      py-2.5 rounded-xl transition-colors shadow-sm
+                    "
                   >
-                    <MessageSquare size={12} />
+                    <MessageSquare size={13} />
                     Napisz w czacie
                   </button>
                 </div>
               </div>
             ) : order.status === 'in_progress' ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col gap-3">
-                <div>
-                  <p className="text-xs font-bold text-amber-800 mb-0.5">Zlecenie w trakcie realizacji</p>
-                  <p className="text-[11px] text-amber-600">Klient wybrał już wykonawcę do tego zadania i naboru nie ma.</p>
-                </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                <p className="text-sm font-bold text-amber-900 mb-1">Zlecenie w trakcie realizacji</p>
+                <p className="text-xs text-amber-700 mb-3">
+                  Klient wybrał już wykonawcę. Nabór zamknięty.
+                </p>
 
                 {(() => {
-                  const selectedOffer = offers.find(o => (o.provider_id || o.provider?.id) === order.selected_provider_id);
-                  const provider = selectedOffer?.provider;
+                  const selectedOffer = offers.find(o => 
+                    (o.provider_id || (Array.isArray(o.provider) ? o.provider[0]?.id : o.provider?.id)) === order.selected_provider_id
+                  );
+                  
+                  const rawProvider = selectedOffer?.provider;
+                  const provider = Array.isArray(rawProvider) ? rawProvider[0] : rawProvider;
                   const providerId = order.selected_provider_id;
                   const stats = providerStats[providerId] || { rating: 0, count: 0, reviews: [] };
                   const isReviewsOpen = expandedProviderReviews === providerId;
 
                   return (
-                    <div className="bg-white border border-amber-200 rounded-xl p-3 flex flex-col gap-2 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-razdwa-purple">
-                            <User size={16} />
-                          </div>
-                          <div>
-                            <p className="font-bold text-razdwa-dark text-xs flex items-center gap-1.5">
+                    <div className="bg-white border border-amber-100 rounded-xl p-3.5 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="
+                          w-10 h-10 shrink-0
+                          bg-violet-100 text-violet-600
+                          rounded-xl flex items-center justify-center
+                        ">
+                          <User size={18} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm text-gray-900">
                               {provider?.full_name || 'Wybrany fachowiec'}
-                              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Wybrany</span>
                             </p>
-                            <button
-                              type="button"
-                              onClick={() => setExpandedProviderReviews(isReviewsOpen ? null : providerId)}
-                              className="flex items-center gap-2 mt-1 text-[11px] text-gray-500 hover:text-razdwa-purple transition-colors"
-                            >
-                              <div className="flex items-center gap-0.5 text-yellow-600 font-semibold">
-                                <Star size={11} className="fill-yellow-400 text-yellow-400" />
-                                <span>{stats.rating}</span>
+                            {provider?.is_pro && (
+                              <div className="
+                                flex items-center gap-1
+                                bg-gradient-to-r from-violet-600 to-fuchsia-600
+                                px-2 py-0.5 rounded-full
+                              ">
+                                <Star size={10} className="fill-yellow-300 text-yellow-300" />
+                                <span className="text-[9px] font-black text-white tracking-wide uppercase">
+                                  PRO
+                                </span>
                               </div>
-                              <span className="text-gray-300">•</span>
-                              <span className="underline">Opinie ({stats.count})</span>
-                              <ChevronDown size={12} className={`transition-transform ${isReviewsOpen ? 'rotate-180' : ''}`} />
-                            </button>
+                            )}
+                            <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md">
+                              Wybrany
+                            </span>
                           </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => setExpandedProviderReviews(isReviewsOpen ? null : providerId)}
+                            className="flex items-center gap-1.5 mt-1 text-xs text-gray-500 hover:text-violet-600 transition-colors"
+                          >
+                            <div className="flex items-center gap-0.5 text-amber-500 font-semibold">
+                              <Star size={12} className="fill-amber-400 text-amber-400" />
+                              <span>{stats.rating}</span>
+                            </div>
+                            <span className="text-gray-300">•</span>
+                            <span className="underline">Opinie ({stats.count})</span>
+                            <ChevronDown size={13} className={`transition-transform ${isReviewsOpen ? 'rotate-180' : ''}`} />
+                          </button>
                         </div>
                       </div>
 
                       {isReviewsOpen && (
-                        <div className="bg-gray-50 rounded-xl p-2.5 border border-gray-100 flex flex-col gap-2 mt-1">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Komentarze klientów:</p>
+                        <div className="mt-3 bg-gray-50 rounded-xl p-3 border border-gray-100 flex flex-col gap-2">
                           {stats.reviews.length === 0 ? (
-                            <p className="text-[11px] text-gray-500 italic">Brak opinii</p>
+                            <p className="text-xs text-gray-400 italic">Brak opinii</p>
                           ) : (
                             stats.reviews.map((rev) => (
-                              <div key={rev.id} className="bg-white p-2 rounded-lg border border-gray-100 text-[11px] flex flex-col gap-1">
-                                <div className="flex justify-between items-center font-semibold text-razdwa-dark">
+                              <div key={rev.id} className="bg-white p-2.5 rounded-lg border border-gray-100 text-xs">
+                                <div className="flex justify-between items-center font-semibold text-gray-800 mb-1">
                                   <span>{rev.client?.full_name || 'Klient'}</span>
-                                  <div className="flex items-center gap-0.5 text-yellow-500">
-                                    <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                  <div className="flex items-center gap-0.5 text-amber-500">
+                                    <Star size={11} className="fill-amber-400 text-amber-400" />
                                     <span>{rev.rating}/5</span>
                                   </div>
                                 </div>
@@ -691,23 +808,22 @@ export default function OrderDetailsPage() {
                 })()}
               </div>
             ) : (
-              <div className="flex flex-col gap-2 pt-2">
+              <div className="flex flex-col gap-2.5 pt-1">
                 <Button 
                   fullWidth 
-                  className="py-3 text-sm shadow-md hover:shadow-lg transition-all"
+                  className="py-3.5 text-sm shadow-md"
                   onClick={handleOffer}
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? 'Przetwarzanie...' : 'Odpowiedz (1 punkt)'}
                 </Button>
-                <p className="text-[11px] text-center text-gray-400">
-                  Odpowiedź na zlecenie pobiera 1 punkt z salda i odblokowuje kontakt oraz czat.
+                <p className="text-xs text-center text-gray-400">
+                  Odpowiedź pobiera 1 punkt i odblokowuje kontakt oraz czat.
                 </p>
               </div>
             )}
           </>
         )}
-
       </div>
     </div>
   );
