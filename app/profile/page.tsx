@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { OrderCard } from '@/components/ui/OrderCard';
-import { Wallet, ClipboardList, ChevronDown, Star, MessageSquare, CheckCircle, Edit2, Plus, Trash2, X, Briefcase, Bell } from 'lucide-react';
+import { Wallet, ClipboardList, ChevronDown, Star, MessageSquare, CheckCircle, Edit2, Plus, Trash2, X, Briefcase, Bell, Mail } from 'lucide-react';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -21,6 +21,7 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState('');
   const [contactInfo, setContactInfo] = useState('');
+  const [email, setEmail] = useState(''); // Новое состояние для email
   const [portfolioImages, setPortfolioImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
 
@@ -51,6 +52,7 @@ export default function ProfilePage() {
 
       setSession(session);
       const userId = session.user.id;
+      setEmail(session.user.email || ''); // Записываем текущий email из Auth
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -107,6 +109,7 @@ export default function ProfilePage() {
           rating,
           comment,
           created_at,
+          provider_id,
           client:profiles!reviews_client_id_fkey (full_name)
         `)
         .eq('provider_id', userId)
@@ -169,6 +172,7 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
+      // Проверка 14-дневного лимита по профилю
       if (profile?.last_profile_update) {
         const lastUpdate = new Date(profile.last_profile_update).getTime();
         const now = new Date().getTime();
@@ -187,6 +191,13 @@ export default function ProfilePage() {
 
       const currentTime = new Date().toISOString();
 
+      // Если пользователь изменил email, обновляем его через Supabase Auth
+      if (email && email !== session.user.email) {
+        const { error: emailError } = await supabase.auth.updateUser({ email: email });
+        if (emailError) throw emailError;
+      }
+
+      // Обновляем данные в таблице profiles
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -208,9 +219,9 @@ export default function ProfilePage() {
       });
 
       setIsEditing(false);
-      setMessage({ text: 'Profil został zaktualizowany! ✓', type: 'success' });
+      setMessage({ text: 'Profil został zaktualizowany! Jeśli zmieniłeś e-mail, sprawdź skrzynkę w celu potwierdzenia. ✓', type: 'success' });
     } catch (error: any) {
-      setMessage({ text: 'Wystąpił błąd podczas zapisywania.', type: 'error' });
+      setMessage({ text: error.message || 'Wystąpił błąd podczas zapisywania.', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -240,16 +251,6 @@ export default function ProfilePage() {
     } finally {
       setIsLoadingPortal(false);
     }
-  };
-
-  const addPortfolioImage = () => {
-    if (!newImageUrl.trim()) return;
-    setPortfolioImages([...portfolioImages, newImageUrl.trim()]);
-    setNewImageUrl('');
-  };
-
-  const removePortfolioImage = (index: number) => {
-    setPortfolioImages(portfolioImages.filter((_, i) => i !== index));
   };
 
   if (isLoading && !profile) {
@@ -299,129 +300,129 @@ export default function ProfilePage() {
         
       </div>
 
-{/* Balance Card */}
-<div className="
-  relative overflow-hidden
-  bg-gradient-to-br from-violet-600 to-fuchsia-600
-  rounded-2xl p-5 mb-4
-  shadow-[0_4px_20px_rgba(139,92,246,0.25)]
-">
-  <div className="flex items-center justify-between">
-    <div className="flex items-center gap-3">
-      <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-        <Wallet size={22} className="text-white" />
-      </div>
-      <div>
-        <p className="text-[11px] text-white/70 font-medium uppercase tracking-wider">
-          Twój balans
-        </p>
-        <p className="text-2xl font-bold text-white tracking-tight">
-          {profile?.points_balance || 0}
-          <span className="text-base font-semibold ml-1 opacity-80">pkt</span>
-        </p>
-      </div>
-    </div>
-    
-    <div className="flex flex-col items-end gap-1.5">
-      <span className="text-[11px] bg-white/20 text-white font-semibold px-2.5 py-1 rounded-lg backdrop-blur-sm">
-        {profile?.role === 'provider' ? 'Wykonawca' : 'Zleceniodawca'}
-      </span>
-
-      {profile?.role === 'provider' && (
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1 text-[11px] font-bold text-white bg-white/15 px-2 py-0.5 rounded-md">
-            <CheckCircle size={11} />
-            <span>{reviews.length}</span>
+      {/* Balance Card */}
+      <div className="
+        relative overflow-hidden
+        bg-gradient-to-br from-violet-600 to-fuchsia-600
+        rounded-2xl p-5 mb-4
+        shadow-[0_4px_20px_rgba(139,92,246,0.25)]
+      ">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <Wallet size={22} className="text-white" />
+            </div>
+            <div>
+              <p className="text-[11px] text-white/70 font-medium uppercase tracking-wider">
+                Twój balans
+              </p>
+              <p className="text-2xl font-bold text-white tracking-tight">
+                {profile?.points_balance || 0}
+                <span className="text-base font-semibold ml-1 opacity-80">pkt</span>
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-[11px] font-bold text-yellow-300 bg-white/15 px-2 py-0.5 rounded-md">
-            <Star size={11} className="fill-yellow-300" />
-            <span>{averageRating}</span>
+          
+          <div className="flex flex-col items-end gap-1.5">
+            <span className="text-[11px] bg-white/20 text-white font-semibold px-2.5 py-1 rounded-lg backdrop-blur-sm">
+              {profile?.role === 'provider' ? 'Wykonawca' : 'Zleceniodawca'}
+            </span>
+
+            {profile?.role === 'provider' && (
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 text-[11px] font-bold text-white bg-white/15 px-2 py-0.5 rounded-md">
+                  <CheckCircle size={11} />
+                  <span>{reviews.length}</span>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-yellow-300 bg-white/15 px-2 py-0.5 rounded-md">
+                  <Star size={11} className="fill-yellow-300" />
+                  <span>{averageRating}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
-    </div>
-  </div>
 
-  {/* PRO Status */}
-  {profile?.role === 'provider' && profile?.is_pro && (
-    <div className="mt-4 pt-3.5 border-t border-white/20 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1.5 bg-white/20 px-2.5 py-1 rounded-full">
-          <Star size={12} className="fill-yellow-300 text-yellow-300" />
-          <span className="text-[11px] font-black text-white tracking-wide uppercase">
-            PRO
-          </span>
+        {/* PRO Status */}
+        {profile?.role === 'provider' && profile?.is_pro && (
+          <div className="mt-4 pt-3.5 border-t border-white/20 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-white/20 px-2.5 py-1 rounded-full">
+                <Star size={12} className="fill-yellow-300 text-yellow-300" />
+                <span className="text-[11px] font-black text-white tracking-wide uppercase">
+                  PRO
+                </span>
+              </div>
+              <span className="text-[12px] text-white/80 font-medium">
+                Aktywne
+              </span>
+            </div>
+
+            {profile?.pro_expires_at && (
+              <span className="text-[11px] text-white/70 font-medium">
+                do {new Date(profile.pro_expires_at).toLocaleDateString('pl-PL')}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* User ID + Copy */}
+        <div className={`
+          flex items-center justify-between
+          ${profile?.role === 'provider' && profile?.is_pro ? 'mt-3' : 'mt-4 pt-3.5 border-t border-white/20'}
+        `}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] text-white/60 font-medium shrink-0">ID:</span>
+            <span className="text-[11px] text-white/90 font-mono truncate">
+              {session?.user?.id || profile?.id}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const id = session?.user?.id || profile?.id;
+              if (id) {
+                navigator.clipboard.writeText(id);
+                setCopiedId(true);
+                setTimeout(() => setCopiedId(false), 2000);
+              }
+            }}
+            className="
+              flex items-center gap-1.5
+              text-[11px] font-semibold text-white
+              bg-white/15 hover:bg-white/25
+              px-2.5 py-1 rounded-lg
+              transition-colors
+              shrink-0
+              min-w-[76px] justify-center
+            "
+            title="Kopiuj ID"
+          >
+            {copiedId ? (
+              <span className="text-emerald-300">Skopiowano!</span>
+            ) : (
+              <>
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="12" 
+                  height="12" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                >
+                  <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                </svg>
+                Kopiuj
+              </>
+            )}
+          </button>
         </div>
-        <span className="text-[12px] text-white/80 font-medium">
-          Aktywne
-        </span>
       </div>
-
-      {profile?.pro_expires_at && (
-        <span className="text-[11px] text-white/70 font-medium">
-          do {new Date(profile.pro_expires_at).toLocaleDateString('pl-PL')}
-        </span>
-      )}
-    </div>
-  )}
-
-  {/* User ID + Copy */}
-<div className={`
-  flex items-center justify-between
-  ${profile?.role === 'provider' && profile?.is_pro ? 'mt-3' : 'mt-4 pt-3.5 border-t border-white/20'}
-`}>
-  <div className="flex items-center gap-2 min-w-0">
-    <span className="text-[11px] text-white/60 font-medium shrink-0">ID:</span>
-    <span className="text-[11px] text-white/90 font-mono truncate">
-      {session?.user?.id || profile?.id}
-    </span>
-  </div>
-
-  <button
-    type="button"
-    onClick={() => {
-      const id = session?.user?.id || profile?.id;
-      if (id) {
-        navigator.clipboard.writeText(id);
-        setCopiedId(true);
-        setTimeout(() => setCopiedId(false), 2000);
-      }
-    }}
-    className="
-      flex items-center gap-1.5
-      text-[11px] font-semibold text-white
-      bg-white/15 hover:bg-white/25
-      px-2.5 py-1 rounded-lg
-      transition-colors
-      shrink-0
-      min-w-[76px] justify-center
-    "
-    title="Kopiuj ID"
-  >
-    {copiedId ? (
-      <span className="text-emerald-300">Skopiowano!</span>
-    ) : (
-      <>
-        <svg 
-          xmlns="http://www.w3.org/2000/svg" 
-          width="12" 
-          height="12" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2.5" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-        >
-          <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-        </svg>
-        Kopiuj
-      </>
-    )}
-  </button>
-</div>
-</div>
 
       {/* PRO Subscription Button */}
       {profile?.role === 'provider' && profile?.is_pro && (
@@ -544,7 +545,12 @@ export default function ProfilePage() {
             <div>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Numer telefonu</p>
               <p className="text-base font-semibold text-gray-900">{profile?.contact_info || 'Nie podano'}</p>
-            </div>   
+            </div> 
+
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Adres e-mail</p>
+              <p className="text-base font-semibold text-gray-900">{email || 'Nie podano'}</p>
+            </div>
           </div>
         </div>
       ) : (
@@ -569,7 +575,16 @@ export default function ProfilePage() {
               placeholder="np. +48 123 456 789"
               value={contactInfo}
               onChange={(e) => setContactInfo(e.target.value)}
-            />   
+            /> 
+
+            <Input 
+              label="Adres e-mail" 
+              type="email"
+              placeholder="np. jan@kowalski.pl"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
 
           <div className="flex gap-2.5 pt-5">
@@ -588,61 +603,61 @@ export default function ProfilePage() {
         </form>
       )}
 
-{/* Reviews */}
-{profile?.role === 'provider' && (
-  <div className="mb-6">
-    <details className="group bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      <summary className="flex items-center justify-between cursor-pointer list-none p-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center">
-            <MessageSquare size={16} className="text-violet-600" />
-          </div>
-          <h2 className="font-bold text-base text-gray-900">
-            Opinie klientów
-            <span className="text-violet-600 font-semibold ml-1.5">({reviews.length})</span>
-          </h2>
-        </div>
-        <ChevronDown 
-          size={18} 
-          className="text-gray-400 transition-transform duration-200 group-open:rotate-180" 
-        />
-      </summary>
-
-      <div className="px-4 pb-4 border-t border-gray-50">
-        {reviews.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-gray-400">Nie masz jeszcze żadnych opinii.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2.5 pt-4">
-            {reviews.map((rev) => (
-              <div 
-                key={rev.id} 
-                className="bg-gray-50/70 border border-gray-100 rounded-xl p-4"
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-semibold text-sm text-gray-900">
-                    {rev.client?.full_name || 'Klient'}
-                  </span>
-                  <div className="flex items-center gap-1 text-sm font-semibold text-amber-500">
-                    <Star size={13} className="fill-amber-400 text-amber-400" />
-                    <span>{rev.rating}/5</span>
-                  </div>
+      {/* Reviews */}
+      {profile?.role === 'provider' && (
+        <div className="mb-6">
+          <details className="group bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            <summary className="flex items-center justify-between cursor-pointer list-none p-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center">
+                  <MessageSquare size={16} className="text-violet-600" />
                 </div>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  {rev.comment || 'Brak komentarza'}
-                </p>
-                <span className="text-[11px] text-gray-400 mt-2 block">
-                  {new Date(rev.created_at).toLocaleDateString('pl-PL')}
-                </span>
+                <h2 className="font-bold text-base text-gray-900">
+                  Opinie klientów
+                  <span className="text-violet-600 font-semibold ml-1.5">({reviews.length})</span>
+                </h2>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </details>
-  </div>
-)}
+              <ChevronDown 
+                size={18} 
+                className="text-gray-400 transition-transform duration-200 group-open:rotate-180" 
+              />
+            </summary>
+
+            <div className="px-4 pb-4 border-t border-gray-50">
+              {reviews.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-400">Nie masz jeszcze żadnych opinii.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5 pt-4">
+                  {reviews.map((rev) => (
+                    <div 
+                      key={rev.id} 
+                      className="bg-gray-50/70 border border-gray-100 rounded-xl p-4"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-semibold text-sm text-gray-900">
+                          {rev.client?.full_name || 'Klient'}
+                        </span>
+                        <div className="flex items-center gap-1 text-sm font-semibold text-amber-500">
+                          <Star size={13} className="fill-amber-400 text-amber-400" />
+                          <span>{rev.rating}/5</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        {rev.comment || 'Brak komentarza'}
+                      </p>
+                      <span className="text-[11px] text-gray-400 mt-2 block">
+                        {new Date(rev.created_at).toLocaleDateString('pl-PL')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
+        </div>
+      )}
 
       {/* My Orders */}
       <div>

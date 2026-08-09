@@ -1,17 +1,19 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation'; // <-- Добавили для перехода между страницами
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
-  const router = useRouter(); // <-- Инициализируем роутер
+  const router = useRouter();
   
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState(''); // Новое поле: Имя и Фамилия
+  const [contactInfo, setContactInfo] = useState(''); // Новое поле: Телефон
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
@@ -27,24 +29,29 @@ export default function LoginPage() {
         if (error) throw error;
         
         setMessage({ text: 'Zalogowano pomyślnie! 🎉', type: 'success' });
-        // Ждем 1 секунду, чтобы пользователь увидел сообщение, и перебрасываем на главную
         setTimeout(() => router.push('/'), 1000);
         
       } else {
         // --- РЕГИСТРАЦИЯ ---
+        if (!fullName.trim() || !contactInfo.trim()) {
+          throw new Error('Wypełnij imię, nazwisko oraz numer telefonu.');
+        }
+
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         
-        // Как только аккаунт создан, делаем запись в таблицу profiles
+        // Создаем профиль в таблице profiles с именем и телефоном
         if (data.user) {
-          const { error: profileError } = await supabase.from('profiles').insert([
+          const { error: profileError } = await supabase.from('profiles').upsert([
             { 
               id: data.user.id, 
-              role: 'provider', // Делаем его исполнителем по умолчанию
-              points_balance: 10 // Начисляем 10 бонусов за регистрацию
+              full_name: fullName,
+              contact_info: contactInfo,
+              role: 'provider', 
+              points_balance: 10 
             }
           ]);
-          if (profileError) console.error('Błąd tworzenia profilu:', profileError);
+          if (profileError) throw profileError;
         }
         
         setMessage({ text: 'Konto zostało pomyślnie utworzone! 🎉', type: 'success' });
@@ -58,9 +65,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="p-6 flex flex-col justify-center min-h-[75vh]">
+    <div className="p-6 flex flex-col justify-center min-h-[75vh] max-w-md mx-auto">
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-razdwa-dark mb-2">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
           {isLogin ? 'Witaj ponownie! 👋' : 'Dołącz do nas! 🚀'}
         </h1>
         <p className="text-gray-500 text-sm">
@@ -76,7 +83,28 @@ export default function LoginPage() {
         </div>
       )}
 
-      <form className="flex flex-col" onSubmit={handleAuth}>
+      <form className="flex flex-col gap-3" onSubmit={handleAuth}>
+        {!isLogin && (
+          <>
+            <Input 
+              label="Imię i nazwisko" 
+              type="text" 
+              placeholder="np. Jan Kowalski" 
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required={!isLogin} 
+            />
+            <Input 
+              label="Numer telefonu" 
+              type="text" 
+              placeholder="np. +48 123 456 789" 
+              value={contactInfo}
+              onChange={(e) => setContactInfo(e.target.value)}
+              required={!isLogin} 
+            />
+          </>
+        )}
+
         <Input 
           label="Adres e-mail" 
           type="email" 
@@ -93,6 +121,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required 
         />
+
         <Button fullWidth className="mt-4" disabled={isLoading}>
           {isLoading ? 'Przetwarzanie...' : (isLogin ? 'Zaloguj się' : 'Zarejestruj się')}
         </Button>
@@ -105,7 +134,7 @@ export default function LoginPage() {
             setIsLogin(!isLogin);
             setMessage(null);
           }}
-          className="text-razdwa-purple font-semibold hover:underline"
+          className="text-violet-600 font-semibold hover:underline"
           type="button"
         >
           {isLogin ? 'Zarejestruj się' : 'Zaloguj się'}

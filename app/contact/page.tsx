@@ -22,7 +22,7 @@ export default function ContactPage() {
               Działalność nierejestrowana<br />
               [Bolesława Krzywoustego, 14]<br />
               [70-250, Szczecin]
-              [vladyslav.o.pl@gmail.com]
+              [support@razdwaszybko.pl]
             </p>
           </div>
         </div>

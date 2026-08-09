@@ -14,9 +14,9 @@ export async function POST(req: Request) {
   try {
     const { type, orderId, providerId } = await req.json();
 
-    if (!orderId || !providerId || !type) {
-      return NextResponse.json({ error: 'Brak wymaganych danych' }, { status: 400 });
-    }
+if (!orderId || !providerId || !type) {
+  return NextResponse.json({ error: 'Brak wymaganych danych' }, { status: 400 });
+}
 
     // 1. Запрашиваем информацию о заказе
     const { data: order, error: orderError } = await supabase
