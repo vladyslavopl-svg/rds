@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { OrderCard } from '@/components/ui/OrderCard';
-import { Wallet, ClipboardList, ChevronDown, Star, MessageSquare, CheckCircle, Edit2, Plus, Trash2, X, Briefcase, Bell, Mail } from 'lucide-react';
+import { Wallet, ClipboardList, ChevronDown, Star, MessageSquare, CheckCircle, Edit2, Plus, Trash2, X, Briefcase, Bell, Mail, Gift, QrCode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react'; // Импортируем генератор QR-кода
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState('');
   const [contactInfo, setContactInfo] = useState('');
-  const [email, setEmail] = useState(''); // Новое состояние для email
+  const [email, setEmail] = useState(''); 
   const [portfolioImages, setPortfolioImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
 
@@ -30,6 +31,8 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
   const [copiedId, setCopiedId] = useState(false);
+  const [copiedRef, setCopiedRef] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false); // Состояние для модального окна QR-кода
 
   useEffect(() => {
     let isMounted = true;
@@ -52,7 +55,7 @@ export default function ProfilePage() {
 
       setSession(session);
       const userId = session.user.id;
-      setEmail(session.user.email || ''); // Записываем текущий email из Auth
+      setEmail(session.user.email || '');
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -172,7 +175,6 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
-      // Проверка 14-дневного лимита по профилю
       if (profile?.last_profile_update) {
         const lastUpdate = new Date(profile.last_profile_update).getTime();
         const now = new Date().getTime();
@@ -191,13 +193,11 @@ export default function ProfilePage() {
 
       const currentTime = new Date().toISOString();
 
-      // Если пользователь изменил email, обновляем его через Supabase Auth
       if (email && email !== session.user.email) {
         const { error: emailError } = await supabase.auth.updateUser({ email: email });
         if (emailError) throw emailError;
       }
 
-      // Обновляем данные в таблице profiles
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -261,6 +261,8 @@ export default function ProfilePage() {
     );
   }
 
+  const referralUrl = profile?.referral_code ? `https://razdwaszybko.pl/login?ref=${profile.referral_code}` : '';
+
   return (
     <div className="p-4 pb-28 max-w-md mx-auto">
       
@@ -297,7 +299,6 @@ export default function ProfilePage() {
             {isEditing ? 'Zamknij' : 'Edytuj'}
           </button>
         </div>
-        
       </div>
 
       {/* Balance Card */}
@@ -423,6 +424,80 @@ export default function ProfilePage() {
           </button>
         </div>
       </div>
+
+      {/* Referral Program Card */}
+      {profile?.referral_code && (
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm mb-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center">
+                <Gift size={16} className="text-violet-600" />
+              </div>
+              <h3 className="font-bold text-sm text-gray-900">Program poleceń 🎁</h3>
+            </div>
+            
+            {/* Кнопка показать QR-код */}
+            <button
+              onClick={() => setIsQrModalOpen(true)}
+              className="flex items-center gap-1 text-xs font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 px-2.5 py-1.5 rounded-xl transition-colors"
+            >
+              <QrCode size={14} />
+              QR-kod
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-500 mb-3">
+            Zapraszaj znajomych i zyskuj <strong className="text-violet-600">4 punkty</strong> za każdego zarejestrowanego użytkownika!
+          </p>
+          
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              readOnly 
+              value={referralUrl}
+              className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-600 focus:outline-none"
+            />
+            <Button 
+              onClick={() => {
+                navigator.clipboard.writeText(referralUrl);
+                setCopiedRef(true);
+                setTimeout(() => setCopiedRef(false), 2000);
+              }}
+              className="text-xs py-2 px-3 shrink-0"
+            >
+              {copiedRef ? 'Skopiowano!' : 'Kopiuj'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно с QR-кодом */}
+      {isQrModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xs w-full p-6 shadow-xl relative flex flex-col items-center text-center animate-in fade-in zoom-in duration-200">
+            <button 
+              onClick={() => setIsQrModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20} />
+            </button>
+
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Twój QR-kod</h3>
+            <p className="text-xs text-gray-500 mb-5">
+              Zeskanuj kod, aby przejść do rejestracji z Twojego polecenia.
+            </p>
+
+            {/* Сам QR код */}
+            <div className="bg-white p-3 border border-gray-100 rounded-2xl shadow-sm mb-5">
+              <QRCodeSVG value={referralUrl} size={180} />
+            </div>
+
+            <Button fullWidth onClick={() => setIsQrModalOpen(false)}>
+              Zamknij
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* PRO Subscription Button */}
       {profile?.role === 'provider' && profile?.is_pro && (

@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation'; // Добавили useSearchParams
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -16,6 +17,9 @@ export default function LoginPage() {
   const [contactInfo, setContactInfo] = useState(''); 
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
+
+  // Получаем реферальный код из URL, если он есть (например: /login?ref=XYZ123)
+  const refCode = searchParams.get('ref');
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +33,6 @@ export default function LoginPage() {
         if (error) throw error;
         
         if (authData.user) {
-          // Проверяем, заблокирован ли пользователь
           const { data: profile } = await supabase
             .from('profiles')
             .select('is_banned, ban_reason')
@@ -37,7 +40,6 @@ export default function LoginPage() {
             .single();
 
           if (profile?.is_banned) {
-            // Выбрасываем из системы
             await supabase.auth.signOut();
             const reason = profile.ban_reason || 'Brak podanego powodu.';
             throw new Error(`Konto zostało zablokowane. Powód: ${reason}. W celu wyjaśnienia sytuacji prosimy o kontakt ze wsparciem: support@razdwaszybko.pl`);
@@ -56,15 +58,41 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         
-        // Создаем профиль в таблице profiles с именем и телефоном
         if (data.user) {
+          let referrerId = null;
+
+          // Если регистрация прошла по реферальной ссылке, ищем пригласившего
+          if (refCode) {
+            const { data: referrerProfile } = await supabase
+              .from('profiles')
+              .select('id, points_balance')
+              .eq('referral_code', refCode)
+              .maybeSingle();
+
+            if (referrerProfile) {
+              referrerId = referrerProfile.id;
+
+              // Начисляем пригласившему +4 пункта
+              await supabase
+                .from('profiles')
+                .update({ points_balance: (referrerProfile.points_balance || 0) + 4 })
+                .eq('id', referrerId);
+            }
+          }
+
+          // Генерируем простой персональный реферальный код для нового пользователя (например, срез UUID)
+          const myReferralCode = data.user.id.replace(/-/g, '').substring(0, 8);
+
+          // Создаем профиль нового пользователя
           const { error: profileError } = await supabase.from('profiles').upsert([
             { 
               id: data.user.id, 
               full_name: fullName,
               contact_info: contactInfo,
               role: 'provider', 
-              points_balance: 10 
+              points_balance: 10, // Базовые поинты при регистрации
+              referral_code: myReferralCode,
+              invited_by: referrerId
             }
           ]);
           if (profileError) throw profileError;
@@ -82,6 +110,7 @@ export default function LoginPage() {
 
   return (
     <div className="p-6 flex flex-col justify-center min-h-[75vh] max-w-md mx-auto">
+      {/* ... остальной интерфейс формы входа/регистрации без изменений ... */}
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           {isLogin ? 'Witaj ponownie! 👋' : 'Dołącz do nas! 🚀'}
@@ -89,6 +118,11 @@ export default function LoginPage() {
         <p className="text-gray-500 text-sm">
           {isLogin ? 'Zaloguj się, aby zarządzać zleceniami' : 'Stwórz konto i zacznij działać'}
         </p>
+        {refCode && !isLogin && (
+          <div className="mt-2 text-xs bg-violet-50 text-violet-700 p-2 rounded-lg font-medium">
+            Rejestrujesz się z polecenia znajomego! ✨
+          </div>
+        )}
       </div>
 
       {message && (
