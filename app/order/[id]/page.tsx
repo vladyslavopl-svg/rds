@@ -36,7 +36,7 @@ export default function OrderDetailsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const currentUser = session?.user;
 
-      const { data: orderData, error } = await supabase
+      const { data: orderData } = await supabase
         .from('orders')
         .select('*')
         .eq('id', params.id)
@@ -178,6 +178,17 @@ export default function OrderDetailsPage() {
           }
         ]);
       }
+
+      // === НОВОЕ: Фоновая отправка письма клиенту о новом отклике ===
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'new_offer',
+          orderId: order.id,
+          providerId: session.user.id
+        })
+      }).catch(err => console.error('Błąd wysyłania emaila:', err));
 
       setHasApplied(true);
       setMessage({ text: 'Oferta została złożona ✓', type: 'success' });
@@ -549,6 +560,7 @@ export default function OrderDetailsPage() {
                               return;
                             }
 
+                            // Уведомление внутри платформы
                             await supabase.from('notifications').insert([
                               {
                                 user_id: providerId,
@@ -557,6 +569,17 @@ export default function OrderDetailsPage() {
                                 order_id: order.id
                               }
                             ]);
+
+                            // === НОВОЕ: Фоновая отправка письма мастеру о выборе ===
+                            fetch('/api/send-email', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                type: 'provider_selected',
+                                orderId: order.id,
+                                providerId: providerId
+                              })
+                            }).catch(err => console.error('Błąd wysyłania emaila:', err));
 
                             setOrder({ ...order, status: 'in_progress', selected_provider_id: providerId });
                             alert('Wykonawca został pomyślnie wybrany!');
