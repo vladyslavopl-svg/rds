@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -12,7 +12,10 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const [isLogin, setIsLogin] = useState(true);
+  const refCode = searchParams.get('ref');
+
+  // Если есть реферальный код в URL, сразу открываем форму регистрации (isLogin = false)
+  const [isLogin, setIsLogin] = useState(!refCode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState(''); 
@@ -20,7 +23,11 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
-  const refCode = searchParams.get('ref');
+  useEffect(() => {
+    if (refCode) {
+      setIsLogin(false);
+    }
+  }, [refCode]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +76,9 @@ function LoginForm() {
           let referrerId = null;
 
           if (refCode) {
-            const { data: referrerProfile } = await supabase
+            console.log('Szukam polecającego z kodem:', refCode);
+            
+            const { data: referrerProfile, error: refErr } = await supabase
               .from('profiles')
               .select('id, points_balance')
               .eq('referral_code', refCode)
@@ -77,11 +86,20 @@ function LoginForm() {
 
             if (referrerProfile) {
               referrerId = referrerProfile.id;
+              const currentBalance = referrerProfile.points_balance || 0;
 
-              await supabase
+              const { error: updateErr } = await supabase
                 .from('profiles')
-                .update({ points_balance: (referrerProfile.points_balance || 0) + 4 })
+                .update({ points_balance: currentBalance + 4 })
                 .eq('id', referrerId);
+
+              if (updateErr) {
+                console.error('Błąd aktualizacji punktów polecającego:', updateErr);
+              } else {
+                console.log('Pomyślnie dodano 4 punkty polecającemu!');
+              }
+            } else {
+              console.warn('Nie znaleziono profilu z takim kodem polecenia.');
             }
           }
 
