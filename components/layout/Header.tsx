@@ -190,7 +190,7 @@ export const Header = () => {
                 >
                   <Wallet size={14} className="text-violet-600" />
                   <span className="text-sm font-bold text-violet-700">
-                    {pointsBalance}
+                    {pointsBalance || 0}
                     <span className="text-[11px] font-semibold ml-0.5 opacity-80">pkt</span>
                   </span>
                 </Link>
