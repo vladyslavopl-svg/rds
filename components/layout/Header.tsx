@@ -134,13 +134,13 @@ export const Header = () => {
         
         {/* Logo */}
         <Link href="/" className="relative flex items-center shrink-0">
-          <div className="relative w-[170px] h-[44px]">
+          <div className="relative w-[350px] h-[55px]">
             <Image
               src="/logo.png"
               alt="RazDwaSzybko"
               fill
               sizes="280px"
-              className="object-contain object-left scale-110 origin-left"
+              className="object-contain object-left scale-190 origin-left"
               priority
             />
           </div>
