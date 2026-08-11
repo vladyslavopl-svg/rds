@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       <div className="space-y-6">
         <section>
           <h2 className="text-xl font-semibold mb-2">1. Administrator danych</h2>
-          <p>Administratorem Twoich danych osobowych jest [Twoje Imię i Nazwisko], prowadzący działalność nierejestrowaną z siedzibą w [Twój Adres]. Kontakt z administratorem: support@razdwaszybko.pl.</p>
+          <p>Administratorem Twoich danych osobowych jest Vladyslav Oliinyk, prowadzący działalność nierejestrowaną z siedzibą pod adresem: Bolesława Krzywoustego 14, 70-250 Szczecin. Kontakt z administratorem: support@razdwaszybko.pl.</p>
         </section>
 
         <section>

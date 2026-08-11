@@ -8,7 +8,7 @@ export default function TermsPage() {
       <div className="space-y-6">
         <section>
           <h2 className="text-xl font-semibold mb-2">1. Postanowienia ogólne</h2>
-          <p>Niniejszy regulamin określa zasady korzystania z serwisu internetowego RazDwaSzybko.pl. Użytkownik korzystając z serwisu akceptuje postanowienia niniejszego regulaminu. Administratorem serwisu jest [Twoje Imię i Nazwisko], prowadzący działalność nierejestrowaną.</p>
+          <p>Administratorem serwisu jest Vladyslav Oliinyk, prowadzący działalność nierejestrowaną, z siedzibą pod adresem: Bolesława Krzywoustego 14, 70-250 Szczecin.</p>
         </section>
 
         <section>

@@ -17,13 +17,13 @@ export default function ContactPage() {
           
           <div className="pt-4 border-t border-gray-100">
             <h3 className="font-medium text-gray-900 mb-2">Dane kontaktowe:</h3>
-            <p className="text-gray-600">
-              [Vladyslav Oliinyk]<br />
-              Działalność nierejestrowana<br />
-              [Bolesława Krzywoustego, 14]<br />
-              [70-250, Szczecin]
-              [support@razdwaszybko.pl]
-            </p>
+<p className="text-gray-600">
+  Vladyslav Oliinyk<br />
+  Działalność nierejestrowana<br />
+  Bolesława Krzywoustego 14<br />
+  70-250 Szczecin<br />
+  support@razdwaszybko.pl
+</p>
           </div>
         </div>
       </div>
