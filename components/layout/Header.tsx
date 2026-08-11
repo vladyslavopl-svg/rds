@@ -132,15 +132,15 @@ export const Header = () => {
     <header className="bg-white/95 backdrop-blur-md border-b border-gray-100/80 fixed top-0 w-full max-w-md z-50 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
       <div className="flex items-center justify-between px-3 py-3.5">
         
-        {/* Logo */}
+{/* Logo */}
         <Link href="/" className="relative flex items-center shrink-0">
-          <div className="relative w-[340px] h-[60px] ">
+          <div className="relative w-48 sm:w-56 h-15 -my-1 mt-1 flex items-center">
             <Image
               src="/logo.png"
               alt="RazDwaSzybko"
               fill
-              sizes="250px"
-              className="object-contain object-left scale-140 origin-left"
+              sizes="(max-width: 640px) 192px, 224px"
+              className="object-contain object-left scale-160 origin-left"
               priority
             />
           </div>
