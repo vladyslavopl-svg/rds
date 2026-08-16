@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { MapPin, Calendar, Tag, DollarSign, FileText } from 'lucide-react';
+import { MapPin, Calendar, Tag, DollarSign, FileText, LocateFixed, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 const categories = [
@@ -27,6 +27,8 @@ export default function CreateOrderPage() {
 
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('Szczecin, zachodniopomorskie');
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [category, setCategory] = useState(categories[0]);
   const [deadline, setDeadline] = useState(deadlines[0]);
   const [description, setDescription] = useState('');
@@ -34,40 +36,80 @@ export default function CreateOrderPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<string | null>(null);
 
-  useEffect(() => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const { latitude, longitude } = position.coords;
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=pl`
-            );
-            const data = await response.json();
-            
-            if (data && data.address) {
-              const city = data.address.city || data.address.town || data.address.village || data.address.county;
-              const state = data.address.state;
-              
-              if (city) {
-                const formattedLocation = state ? `${city}, ${state}` : city;
-                setLocation(formattedLocation);
-              }
-            }
-          } catch (err) {
-            console.error('Nie udało się pobrać dokładnej lokalizacji:', err);
-          }
-        },
-        () => {
-          console.log('Geolokalizacja odrzucona lub niedostępna.');
-        },
-        { timeout: 10000 }
+  const reverseGeocode = useCallback(async (latitude: number, longitude: number) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=pl`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            // Nominatim requires identifying User-Agent
+            'User-Agent': 'RazDwaSzybko/1.0 (https://www.razdwaszybko.pl; support@razdwaszybko.pl)',
+          },
+        }
       );
+      const data = await response.json();
+
+      if (data && data.address) {
+        const city =
+          data.address.city ||
+          data.address.town ||
+          data.address.village ||
+          data.address.municipality ||
+          data.address.county;
+        const state = data.address.state || data.address.region;
+        if (city) {
+          const formattedLocation = state ? `${city}, ${state}` : city;
+          setLocation(formattedLocation);
+          return formattedLocation;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.error('Nie udało się pobrać dokładnej lokalizacji:', err);
+      return null;
     }
   }, []);
 
-const handleSubmit = async (e: React.FormEvent) => {
+  const detectLocation = useCallback(() => {
+    if (!('geolocation' in navigator)) {
+      setLocationStatus('Geolokalizacja niedostępna w tej przeglądarce.');
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationStatus(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setLat(latitude);
+        setLng(longitude);
+        const formatted = await reverseGeocode(latitude, longitude);
+        if (formatted) {
+          setLocationStatus('Lokalizacja ustawiona automatycznie');
+        } else {
+          setLocationStatus('Współrzędne zapisane, sprawdź nazwę lokalizacji');
+        }
+        setIsLocating(false);
+      },
+      (err) => {
+        console.log('Geolokalizacja odrzucona lub niedostępna.', err);
+        setLocationStatus('Nie udało się pobrać lokalizacji. Wpisz ręcznie miasto.');
+        setIsLocating(false);
+      },
+      { timeout: 12000, enableHighAccuracy: true, maximumAge: 60000 }
+    );
+  }, [reverseGeocode]);
+
+  useEffect(() => {
+    detectLocation();
+  }, [detectLocation]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim() || !location.trim() || !budget.trim()) {
       setError('Wypełnij wszystkie wymagane pola.');
@@ -91,37 +133,37 @@ const handleSubmit = async (e: React.FormEvent) => {
       // 3. Проверка (ищем, содержит ли текст хоть одно слово из списка)
       const foundForbiddenWord = stopWords.find(word => fullText.includes(word));
 
+      const orderPayload = {
+        user_id: session.user.id,
+        title,
+        location,
+        category,
+        deadline,
+        description,
+        budget,
+        lat: lat ?? null,
+        lng: lng ?? null,
+      };
+
       if (foundForbiddenWord) {
-        // Если нашли запрещенное слово - записываем как rejected
+        // Jeśli znaleziono zabronione słowo — zapisujemy jako rejected
         await supabase.from('orders').insert([
           {
-            user_id: session.user.id,
-            title,
-            location,
-            category,
-            deadline,
-            description,
-            budget,
-            status: 'rejected' // Устанавливаем статус отклонено
-          }
+            ...orderPayload,
+            status: 'rejected',
+          },
         ]);
         setError('Twoje ogłoszenie zawiera niedozwolone słowa i zostało odrzucone przez system moderacji.');
         setIsSubmitting(false);
         return;
       }
 
-      // Если всё чисто - публикуем
+      // Jeśli wszystko czyste — publikujemy
       const { error: insertError } = await supabase.from('orders').insert([
         {
-          user_id: session.user.id,
-          title,
-          location,
-          category,
-          deadline,
-          description,
-          budget,
-          status: 'active' // Успешная публикация
-        }
+          ...orderPayload,
+          status: 'active',
+        },
       ]);
 
       if (insertError) throw insertError;
@@ -187,20 +229,63 @@ const handleSubmit = async (e: React.FormEvent) => {
             <MapPin size={14} className="text-violet-500" />
             Lokalizacja (Miasto i region) *
           </label>
-          <input
-            type="text"
-            placeholder="np. Szczecin, zachodniopomorskie"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            required
-            className="
-              w-full bg-white border border-gray-200
-              rounded-xl px-4 py-3 text-sm text-gray-900
-              placeholder:text-gray-400
-              focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-400
-              shadow-sm transition-shadow
-            "
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="np. Szczecin, zachodniopomorskie"
+              value={location}
+              onChange={(e) => {
+                setLocation(e.target.value);
+                // При ручном редактировании сбрасываем точные координаты
+                // (чтобы не показывать неверное расстояние)
+                setLat(null);
+                setLng(null);
+                setLocationStatus(null);
+              }}
+              required
+              className="
+                flex-1 bg-white border border-gray-200
+                rounded-xl px-4 py-3 text-sm text-gray-900
+                placeholder:text-gray-400
+                focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-400
+                shadow-sm transition-shadow
+              "
+            />
+            <button
+              type="button"
+              onClick={detectLocation}
+              disabled={isLocating}
+              title="Użyj mojej lokalizacji"
+              className="
+                shrink-0 w-12 h-12 flex items-center justify-center
+                bg-violet-50 border border-violet-200 text-violet-600
+                rounded-xl hover:bg-violet-100 transition-colors
+                disabled:opacity-60
+              "
+            >
+              {isLocating ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <LocateFixed size={18} />
+              )}
+            </button>
+          </div>
+          {locationStatus && (
+            <p className="text-[11px] text-violet-600 mt-0.5 flex items-center gap-1">
+              {lat && lng ? '✓ ' : ''}
+              {locationStatus}
+              {lat && lng && (
+                <span className="text-gray-400">
+                  ({lat.toFixed(4)}, {lng.toFixed(4)})
+                </span>
+              )}
+            </p>
+          )}
+          {!lat && !lng && !locationStatus && (
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              Kliknij ikonę lokalizacji, aby ustawić pozycję automatycznie (dla filtra „w pobliżu”)
+            </p>
+          )}
         </div>
 
         {/* Category */}
